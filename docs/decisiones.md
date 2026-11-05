@@ -7,6 +7,8 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 | Tipo de app | Escritorio para Windows, instalable en una PC modesta; Android después |
 | Modelo de referencia | Moises (funciones) y StemDeck (arquitectura) |
 | Equipo mínimo | Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video |
+| Distribución | Instalador normal para unas 10 personas |
+| Actualizaciones | Automáticas, sin que el usuario haga nada, y nunca en medio de un ensayo |
 | Función principal | La IA crea la secuencia completa y el equipo la edita |
 | Entrega | Paquete para REAPER; el encargado sigue con su flujo hacia la consola |
 | Interfaz | Tauri 2 + React + TypeScript |
@@ -32,5 +34,8 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-10-30: se cambió Flutter + Rust por Tauri 2 + React + TypeScript. Motivo: reutilizar lo que ya se domina e interfaz reutilizable para Android.
 - 2026-11-05: Moises y StemDeck como referencia. La app se instala en una PC modesta (4 GB, Windows 10), así que: IA siempre en la nube (sin motor local), audio en Rust leyendo del disco (Web Audio gastaba demasiada RAM), y backend reordenado al estilo StemDeck (uv, FastAPI, SSE, etapas independientes, contrato tipado).
 - 2026-11-05: temas abiertos tras revisar el proyecto, sin decidir todavía: frecuencia de trabajo (el pipeline da 44.1 kHz, la exportación usa 48 kHz por defecto y Windows suele ir a 48 kHz), instalador de menos de 30 MB frente al peso de Piper y su voz (medir en el paso 4), y `Acordes.txt` en el paquete de la Fase 1 cuando los acordes (RF-12) son de la Fase 2.
+- 2026-11-05: la app la instalan unas 10 personas como un programa normal, y no hay acceso a la PC modesta hasta que esté lista. Por eso la Fase 0 la simula: 2 núcleos de CPU desde 1c y máquina virtual limpia con 4 GB en 1h. Audio de prueba: pistas sintéticas con FFmpeg. Temas abiertos por esto: créditos de Modal compartidos y aviso de Windows por instalador sin firma.
+- 2026-11-05: actualizaciones automáticas con el actualizador de Tauri; deben venir desde la primera versión que se reparta y se prueban en el sub-paso 1i. Los archivos de actualización deben estar en un lugar público (GitHub Releases).
+- 2026-11-05: Modal da hoy solo 1 USD al mes sin método de pago; los otros 29 USD exigen agregar tarjeta. Sin decidir: seguir con 1 USD, agregar tarjeta con límite de gasto, o procesar en la PC de desarrollo (RTX 3050). Se decide con el costo real por canción. Mientras tanto, las pruebas de IA de la Fase 0 corren en local y Modal se usa solo para medir.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

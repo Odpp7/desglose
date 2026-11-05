@@ -2,7 +2,7 @@
 
 Objetivo: comprobar que lo difícil funciona **antes** de hacer la app completa. Si algo falla aquí, se cambia el enfoque sin haber perdido semanas.
 
-Recordatorio: la app final se instala en una **PC modesta (Windows 10, 4 GB de RAM, sin GPU)**. Todo se mide pensando en esa PC.
+Recordatorio: la app final la instalan unas 10 personas como un programa normal, y el peor caso es una **PC modesta (Windows 10, 4 GB de RAM, sin GPU)**. Todo se mide pensando en esa PC. No hay acceso a ella hasta que la app esté lista, así que durante la Fase 0 se simula.
 
 Cada paso es independiente y vive en `prototypes/`. Se hacen en este orden, **uno a la vez**.
 
@@ -27,17 +27,19 @@ Se hace en sub-pasos, probando cada uno antes del siguiente:
 - [x] **1a.** Crear el proyecto con `npm create tauri-app@latest` (React + TypeScript). Que abra la ventana.
 - [ ] **1b.** En Rust: reproducir **una** pista FLAC/WAV leyéndola desde el disco por bloques (`symphonia` + `cpal`). Botones play y pausa.
 - [ ] **1c.** Reproducir **8 pistas** juntas con un solo reloj. Mute, solo y volumen por pista.
+- [ ] **1c+.** Primera medición con recursos limitados: la app solo con 2 núcleos de la CPU (`start /affinity 3`), 8 pistas durante 5 minutos, midiendo RAM, CPU y cortes.
 - [ ] **1d.** Enviar la posición a la interfaz por eventos y mostrar el tiempo; buscar a un punto.
 - [ ] **1e.** Generar un click desde BPM y compás (acento en el 1).
 - [ ] **1f.** Exportar la mezcla a WAV 24 bits sin pasar por la tarjeta de sonido (`hound`).
 - [ ] **1g.** Cambio de velocidad sin cambiar el tono (`signalsmith-stretch`).
-- [ ] **1h.** Generar el instalador NSIS e instalarlo en otra PC (ideal: Windows 10 con 4 GB).
+- [ ] **1h.** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 4 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.
+- [ ] **1i.** Actualización automática: instalar una versión 0.1 en la máquina virtual, publicar una 0.2 y comprobar que se actualiza sola, sin pedirle nada al usuario.
 
 **Medir:** 5 minutos con 8 pistas sin desfase ni cortes; RAM de la app menor a 400 MB; uso de CPU razonable; WAV exportado idéntico a lo que se escucha.
 
-**Pasa si:** todo lo anterior se cumple también en la PC modesta.
+**Pasa si:** todo lo anterior se cumple con 2 núcleos y la app instala y abre en la máquina virtual. La simulación no reemplaza a la PC real: el procesador de desarrollo es más rápido y el audio dentro de una máquina virtual no sirve para medir cortes. La prueba definitiva es la primera instalación real.
 
-Para probar sin la IA, sirven las pistas de la secuencia de referencia del encargado o cualquier multitrack gratuito.
+Para probar sin la IA y sin canciones, se generan 8 pistas sintéticas con FFmpeg: clicks idénticos en todas, que además sirven para medir el desfase. Después sirven las pistas de la secuencia de referencia del encargado o cualquier multitrack gratuito.
 
 ## Paso 2 — Exportar a REAPER (`prototypes/rpp-export`)
 
@@ -49,7 +51,7 @@ Para probar sin la IA, sirven las pistas de la secuencia de referencia del encar
 
 ## Paso 3 — Pipeline de IA (`prototypes/ai-pipeline` → luego `backend/`)
 
-Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Primero cada etapa en local con una canción corta; luego todo en Modal con GPU.
+Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Las pruebas y comparaciones de modelos corren en local, con la RTX 3050 de la PC de desarrollo, para no gastar crédito. Modal solo se usa al final, con una o dos canciones, para medir el costo real: sin tarjeta hay 1 USD al mes.
 
 - [ ] **3a.** Proyecto con `uv init`, FFmpeg para normalizar el audio.
 - [ ] **3b.** Separación con `audio-separator`: BS-RoFormer-SW vs Demucs `htdemucs_6s` → escuchar guitarra y piano.
@@ -75,8 +77,9 @@ Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba sol
 
 Se pasa a la Fase 1 (la app completa) cuando:
 
-- [ ] el motor de audio no se desfasa y respeta la RAM en la PC modesta,
-- [ ] el instalador funciona en otra PC sin instalar nada más,
+- [ ] el motor de audio no se desfasa y respeta la RAM en la simulación de la PC modesta,
+- [ ] el instalador funciona en una máquina virtual limpia sin instalar nada más,
+- [ ] la app se actualiza sola,
 - [ ] la IA da resultados útiles con sus canciones,
 - [ ] el `.RPP` abre bien en REAPER,
-- [ ] el costo por canción cabe en los créditos gratis de Modal.
+- [ ] hay una forma de procesar las canciones que cabe en el costo cero (ver el tema abierto de Modal en `docs/decisiones.md`).

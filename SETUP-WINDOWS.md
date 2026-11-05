@@ -44,7 +44,7 @@ uv run modal setup
 
 ## 4. Abrir el proyecto
 
-El proyecto está en `C:\Users\PC\Desktop\PROYECTOS\desglose`. Falta confirmar el repositorio en GitHub (`Odpp7/desglose`, privado): desde esta PC responde "not found".
+El proyecto está en `C:\Users\PC\Desktop\PROYECTOS\desglose` y en GitHub (`Odpp7/desglose`).
 
 Abre la carpeta con Claude Code y escribe como primer mensaje:
 

@@ -22,7 +22,7 @@ Especificación completa: `docs/especificacion.md`. Decisiones: `docs/decisiones
 
 ## Dónde corre (lo más importante)
 
-La app se **instala en otra PC modesta** (la de la iglesia), no en la PC de desarrollo. Diseñar siempre para el peor caso:
+La app la **instalan unas 10 personas** como un programa normal, no corre en la PC de desarrollo. La más limitada es una **PC modesta** (la de la iglesia), a la que no hay acceso hasta que la app esté lista. Diseñar siempre para el peor caso:
 
 - **Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video.**
 - Instalador `.exe` (NSIS) de menos de 30 MB. La otra PC **no instala nada más**: ni Python, ni FFmpeg, ni Node.

@@ -627,7 +627,7 @@ Es un proyecto personal sin financiación, así que todo se elige para costar ce
 | Tauri, React, Rust y todas las librerías | Gratis | Código abierto |
 | Modelos de IA | Gratis | Código abierto; se revisa la licencia de cada uno en la Fase 0 |
 | Piper (voz) | Gratis | Corre en la PC, es liviano |
-| Modal (IA en la nube) | Gratis con créditos | Plan Starter con 30 USD al mes; una GPU T4 cuesta unos 0,59 USD por hora, o sea unas 50 horas de GPU al mes ([precios](https://modal.com/pricing)). Puede pedir tarjeta al registrarse |
+| Modal (IA en la nube) | Gratis con créditos | Plan Starter: 1 USD al mes sin método de pago; agregar tarjeta desbloquea 29 USD más. Una GPU T4 cuesta unos 0,59 USD por hora, sin contar CPU y memoria ([precios](https://modal.com/pricing)). Tema abierto en `docs/decisiones.md` |
 | Código en GitHub | Gratis | Repositorio privado |
 | Instalador de Windows | Gratis | Sin firma de código: Windows muestra un aviso al instalar; se acepta con "Ejecutar de todas formas" |
 | Android (después) | Gratis | Se instala el APK directo; no hace falta Play Store |
