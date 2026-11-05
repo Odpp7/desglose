@@ -1,49 +1,77 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type Estado = {
+  reproduciendo: boolean;
+  terminado: boolean;
+  cortes: number;
+};
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+function App() {
+  const [ruta, setRuta] = useState("");
+  const [cargada, setCargada] = useState(false);
+  const [error, setError] = useState("");
+  const [estado, setEstado] = useState<Estado | null>(null);
+
+  useEffect(() => {
+    const intervalo = setInterval(async () => {
+      setEstado(await invoke<Estado>("estado"));
+    }, 500);
+    return () => clearInterval(intervalo);
+  }, []);
+
+  async function ejecutar(orden: string, args?: { ruta: string }) {
+    setError("");
+    try {
+      await invoke(orden, args);
+      return true;
+    } catch (e) {
+      setError(String(e));
+      return false;
+    }
+  }
+
+  async function cargar() {
+    // Quita las comillas que agrega "Copiar como ruta de acceso" en Windows.
+    const limpia = ruta.trim().replace(/^"|"$/g, "");
+    setCargada(await ejecutar("cargar", { ruta: limpia }));
+  }
+
+  function textoEstado() {
+    if (!cargada) return "Sin pista";
+    if (estado?.terminado) return "Terminó";
+    return estado?.reproduciendo ? "Reproduciendo" : "En pausa";
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <main>
+      <h1>Motor de audio</h1>
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
+      <label htmlFor="ruta">Ruta de la pista (FLAC o WAV)</label>
+      <div className="fila">
         <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+          id="ruta"
+          value={ruta}
+          onChange={(e) => setRuta(e.target.value)}
+          placeholder="C:\ruta\pista1.flac"
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <button onClick={cargar}>Cargar</button>
+      </div>
+
+      <div className="fila">
+        <button disabled={!cargada} onClick={() => ejecutar("play")}>
+          Play
+        </button>
+        <button disabled={!cargada} onClick={() => ejecutar("pausa")}>
+          Pausa
+        </button>
+      </div>
+
+      <p>
+        {textoEstado()} · Cortes: {estado?.cortes ?? 0}
+      </p>
+      {error && <p className="error">{error}</p>}
     </main>
   );
 }

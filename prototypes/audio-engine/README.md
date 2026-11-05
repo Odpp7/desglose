@@ -6,6 +6,30 @@ Objetivo: 8 pistas sonando juntas 5 minutos sin desfase, leídas desde el disco 
 
 Meta: menos de 400 MB de RAM, probado en una PC con Windows 10 y 4 GB.
 
-Librerías: `cpal`, `symphonia`, `rubato`, `signalsmith-stretch`, `hound`.
+Librerías: `cpal`, `symphonia`, `rubato`, `rtrb`, `signalsmith-stretch`, `hound`.
 
 Sub-pasos en `docs/fase-0.md`.
+
+## Cómo probar
+
+Generar las pistas de prueba (una sola vez, necesita FFmpeg):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/generar-pistas.ps1
+```
+
+Abrir la app y pegar la ruta de una pista de `samples/sinteticas/`:
+
+```powershell
+npm install
+npm run tauri dev
+```
+
+Pruebas del motor, desde `src-tauri/`:
+
+```powershell
+cargo test
+cargo test -- --ignored reproduce_sin_cortes
+```
+
+La segunda suena por la tarjeta de sonido real.

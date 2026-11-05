@@ -19,9 +19,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+cpal = "0.18.2"
+rubato = "5.0.1"
+rtrb = "0.4.1"
+symphonia = { version = "0.6.1", default-features = false, features = ["flac", "wav", "pcm"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
