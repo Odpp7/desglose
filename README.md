@@ -1,0 +1,28 @@
+# Desglose
+
+Una especie de Moises para equipos de alabanza, gratis. App de escritorio para Windows (Tauri + React + Rust) que convierte una canción en una secuencia lista para REAPER: separa instrumentos con IA, detecta tempo y secciones, genera click y voz guía, y deja editarlo todo antes de exportar.
+
+## Estado
+
+**Fase 0 — Pruebas.** Validando el núcleo de audio, los modelos de IA y la exportación a REAPER antes de construir la interfaz.
+
+## Empezar
+
+1. Instala las herramientas: [`SETUP-WINDOWS.md`](SETUP-WINDOWS.md).
+2. Lee el plan de la fase actual: [`docs/fase-0.md`](docs/fase-0.md).
+3. Abre esta carpeta con Claude Code; el contexto está en [`CLAUDE.md`](CLAUDE.md).
+
+## Documentos
+
+- [`docs/especificacion.md`](docs/especificacion.md) — qué hace la app y cómo.
+- [`docs/decisiones.md`](docs/decisiones.md) — decisiones tomadas y por qué.
+- [`docs/fase-0.md`](docs/fase-0.md) — pruebas antes de construir.
+- [`docs/voces-guia.md`](docs/voces-guia.md) — cómo funcionan las guías y reglas de la app.
+
+## Costo
+
+Cero. Todo es gratuito o de código abierto; la IA usa los créditos gratis de Modal.
+
+## Equipo mínimo
+
+Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video. Internet solo para crear secuencias nuevas.

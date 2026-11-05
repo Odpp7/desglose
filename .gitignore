@@ -1,0 +1,44 @@
+# Canciones y audio (derechos de autor y peso)
+samples/*
+!samples/README.md
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.ogg
+
+# Modelos de IA y voces (se descargan, no se suben)
+*.onnx
+*.onnx.json
+*.pt
+*.ckpt
+*.safetensors
+models/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Node / Tauri
+node_modules/
+dist/
+src-tauri/gen/
+
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Salidas de pruebas
+out/
+*.RPP-bak
+
+# Editor y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
