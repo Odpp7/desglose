@@ -14,3 +14,18 @@ foreach ($i in 1..8) {
     ffmpeg -y -loglevel error -f lavfi -i $click -c:a flac -sample_fmt s16 $archivo
     Write-Host "Creada: $archivo"
 }
+
+# Peor caso para medir la CPU: ruido en 24 bits, distinto en cada pista y en cada lado.
+# Nada se comprime peor en FLAC, así que descomprimirlo cuesta más que cualquier canción.
+$destinoRuido = Join-Path $raiz "samples\ruido"
+New-Item -ItemType Directory -Force $destinoRuido | Out-Null
+
+foreach ($i in 1..8) {
+    $archivo = Join-Path $destinoRuido "ruido$i.flac"
+    $izquierda = "anoisesrc=c=white:a=0.1:r=44100:d=300:s=$($i * 2)"
+    $derecha = "anoisesrc=c=white:a=0.1:r=44100:d=300:s=$($i * 2 + 1)"
+    ffmpeg -y -loglevel error -f lavfi -i $izquierda -f lavfi -i $derecha `
+        -filter_complex "[0:a][1:a]amerge=inputs=2" `
+        -c:a flac -sample_fmt s32 -bits_per_raw_sample 24 $archivo
+    Write-Host "Creada: $archivo"
+}
