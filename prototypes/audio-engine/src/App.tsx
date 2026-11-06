@@ -36,6 +36,8 @@ function App() {
   const [arrastre, setArrastre] = useState<number | null>(null);
   const [bpm, setBpm] = useState(CLICK_ORIGINAL.bpm);
   const [tiempos, setTiempos] = useState(CLICK_ORIGINAL.tiempos);
+  const [velocidad, setVelocidad] = useState(1);
+  const [semitonos, setSemitonos] = useState(0);
   const [exportando, setExportando] = useState(false);
   const [exportado, setExportado] = useState("");
 
@@ -66,6 +68,8 @@ function App() {
       setPistas([...filas, { nombre: "Click", volumen: 0.5, mute: false, solo: false }]);
       await invoke("volumen", { indice: nombres.length, valor: 0.5 });
       await invoke("click", { bpm, tiempos });
+      setVelocidad(1);
+      setSemitonos(0);
     } catch (e) {
       setPistas([]);
       setError(String(e));
@@ -77,6 +81,14 @@ function App() {
     setTiempos(nuevosTiempos);
     if (pistas.length > 0 && nuevoBpm > 0) {
       ejecutar("click", { bpm: nuevoBpm, tiempos: nuevosTiempos });
+    }
+  }
+
+  function cambiarEstudio(nuevaVelocidad: number, nuevosSemitonos: number) {
+    setVelocidad(nuevaVelocidad);
+    setSemitonos(nuevosSemitonos);
+    if (pistas.length > 0) {
+      ejecutar("estudio", { velocidad: nuevaVelocidad, semitonos: nuevosSemitonos });
     }
   }
 
@@ -200,6 +212,30 @@ function App() {
           onKeyUp={soltarBarra}
         />
         <span>{formatoTiempo(duracion)}</span>
+      </div>
+
+      <div className="fila tiempo">
+        <label htmlFor="velocidad">Velocidad {Math.round(velocidad * 100)}%</label>
+        <input
+          id="velocidad"
+          type="range"
+          min={0.5}
+          max={1.25}
+          step={0.05}
+          value={velocidad}
+          onChange={(e) => cambiarEstudio(Number(e.target.value), semitonos)}
+        />
+        <label htmlFor="semitonos">Tono</label>
+        <input
+          id="semitonos"
+          className="corto"
+          type="number"
+          min={-6}
+          max={6}
+          value={semitonos}
+          onChange={(e) => cambiarEstudio(velocidad, Number(e.target.value))}
+        />
+        <button onClick={() => cambiarEstudio(1, 0)}>Normal</button>
       </div>
 
       <p>

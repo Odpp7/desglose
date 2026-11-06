@@ -17,6 +17,7 @@ use serde::Serialize;
 
 use super::click::Click;
 use super::render;
+use super::stretch::Estirador;
 use super::track;
 
 // Segundos de audio que cada cola guarda por adelantado.
@@ -59,6 +60,8 @@ pub(super) struct Compartido {
     cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
     bpm: AtomicU32, // f32 guardado como bits, igual que el volumen
     tiempos_por_compas: AtomicU32,
+    velocidad: AtomicU32, // f32 como bits; 1 = normal. Es solo para estudiar, no se exporta
+    semitonos: AtomicU32, // f32 como bits; 0 = tono original. Tampoco se exporta
     pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click
 }
 
@@ -77,6 +80,8 @@ impl Compartido {
             cuadros_sonados: AtomicU64::new(0),
             bpm: AtomicU32::new(120.0f32.to_bits()),
             tiempos_por_compas: AtomicU32::new(4),
+            velocidad: AtomicU32::new(1.0f32.to_bits()),
+            semitonos: AtomicU32::new(0.0f32.to_bits()),
             pistas,
         }
     }
@@ -91,6 +96,11 @@ impl Compartido {
         self.bpm.store(bpm.to_bits(), Ordering::Relaxed);
         self.tiempos_por_compas
             .store(tiempos_por_compas, Ordering::Relaxed);
+    }
+
+    fn fijar_estudio(&self, velocidad: f32, semitonos: f32) {
+        self.velocidad.store(velocidad.to_bits(), Ordering::Relaxed);
+        self.semitonos.store(semitonos.to_bits(), Ordering::Relaxed);
     }
 
     // Copia solo los controles, para exportar sin tocar lo que está sonando.
@@ -260,6 +270,10 @@ impl Motor {
         self.con_compartido(|c| c.fijar_click(bpm, tiempos_por_compas))
     }
 
+    pub fn estudio(&self, velocidad: f32, semitonos: f32) -> Result<(), String> {
+        self.con_compartido(|c| c.fijar_estudio(velocidad, semitonos))
+    }
+
     // Exporta junto a la carpeta de las pistas y devuelve la ruta del archivo.
     // No se guarda dentro de esa carpeta, porque se cargaría como una pista más.
     pub fn exportar(&self) -> Result<PathBuf, String> {
@@ -341,6 +355,10 @@ pub(super) struct Mezclador {
     rate: u32,
     cuadro: u64, // cuadro de la canción que va a sonar; de aquí sale el click
     click: Click,
+    estirador: Estirador,
+    velocidad: f32,
+    en_estudio: bool, // true cuando hay que pasar por el estirador
+    resto: f64, // fracción de cuadro que quedó del bloque anterior
 }
 
 impl Mezclador {
@@ -360,6 +378,10 @@ impl Mezclador {
             rate,
             cuadro: (inicio * rate as f64).round() as u64,
             click: Click::new(120.0, 4, rate),
+            estirador: Estirador::new(rate),
+            velocidad: 1.0,
+            en_estudio: false,
+            resto: 0.0,
         }
     }
 
@@ -368,6 +390,16 @@ impl Mezclador {
         let bpm = f32::from_bits(self.compartido.bpm.load(Ordering::Relaxed));
         let tiempos = self.compartido.tiempos_por_compas.load(Ordering::Relaxed);
         self.click = Click::new(bpm, tiempos, self.rate);
+
+        self.velocidad = f32::from_bits(self.compartido.velocidad.load(Ordering::Relaxed));
+        let semitonos = f32::from_bits(self.compartido.semitonos.load(Ordering::Relaxed));
+        let en_estudio = self.velocidad != 1.0 || semitonos != 0.0;
+        if en_estudio && !self.en_estudio {
+            self.estirador.reiniciar();
+            self.resto = 0.0;
+        }
+        self.en_estudio = en_estudio;
+        self.estirador.ajustar_tono(semitonos);
 
         let pistas = &self.compartido.pistas;
         let callando = self.compartido.callando.load(Ordering::Relaxed);
@@ -381,8 +413,24 @@ impl Mezclador {
         }
     }
 
-    // Devuelve el siguiente cuadro mezclado, o None si alguna pista aún no tiene audio.
+    // Devuelve el siguiente cuadro con pistas y click, o None si alguna pista aún no tiene audio.
     pub(super) fn siguiente_cuadro(&mut self) -> Option<(f32, f32)> {
+        let posicion = self.cuadro as f64;
+        let (izquierda, derecha) = self.siguiente_pistas()?;
+        let click = self.siguiente_click(posicion, 1.0);
+        Some((izquierda + click, derecha + click))
+    }
+
+    // El click va en la última posición de los controles.
+    fn siguiente_click(&mut self, posicion: f64, velocidad: f64) -> f32 {
+        let indice = self.colas.len();
+        let ganancia = &mut self.ganancias[indice];
+        *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
+        self.click.muestra_en(posicion, velocidad) * *ganancia
+    }
+
+    // Suma las pistas, sin el click. Avanza un cuadro en la canción.
+    fn siguiente_pistas(&mut self) -> Option<(f32, f32)> {
         let mut quedan_pistas = false;
         for cola in &self.colas {
             if cola.slots() >= 2 {
@@ -412,14 +460,8 @@ impl Mezclador {
             }
         }
 
-        // El click va en la última posición de los controles.
-        let indice = self.colas.len();
-        let ganancia = &mut self.ganancias[indice];
-        *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
-        let click = self.click.muestra(self.cuadro) * *ganancia;
         self.cuadro += 1;
-
-        Some((izquierda + click, derecha + click))
+        Some((izquierda, derecha))
     }
 
     // Llena el bloque que pide Windows. En pausa escribe silencio y no toca las colas,
@@ -429,6 +471,11 @@ impl Mezclador {
         T: Sample + FromSample<f32>,
     {
         self.leer_controles();
+        if self.en_estudio && self.compartido.reproduciendo.load(Ordering::Relaxed) {
+            self.escribir_estudio(datos, canales);
+            return;
+        }
+
         let mut hubo_corte = false;
         let mut sonados = 0;
 
@@ -448,22 +495,77 @@ impl Mezclador {
                 (0.0, 0.0)
             };
 
-            for (canal, muestra) in cuadro.iter_mut().enumerate() {
-                let valor = match canal {
-                    0 => izquierda,
-                    1 => derecha,
-                    _ => 0.0,
-                };
-                *muestra = T::from_sample(valor.clamp(-1.0, 1.0));
-            }
+            poner_cuadro(cuadro, izquierda, derecha);
         }
 
+        self.anotar_bloque(sonados, hubo_corte);
+    }
+
+    // Igual que `escribir`, pero las pistas pasan por el estirador. A velocidad lenta se piden
+    // menos cuadros de la canción que los que salen. El click se suma después, sin estirarse.
+    fn escribir_estudio<T>(&mut self, datos: &mut [T], canales: usize)
+    where
+        T: Sample + FromSample<f32>,
+    {
+        let cuadros = datos.len() / canales;
+        let velocidad = self.velocidad as f64;
+
+        let exacto = cuadros as f64 * velocidad + self.resto;
+        let pedir = exacto.floor() as usize;
+        self.resto = exacto - pedir as f64;
+
+        // Lo que se oye va atrasado por el estirador: el click se atrasa igual para ir junto.
+        let posicion = self.cuadro as f64 - self.estirador.latencia(velocidad);
+
+        let mut hubo_corte = false;
+        let mut sonados = 0;
+        self.estirador.entrada.clear();
+        for _ in 0..pedir {
+            let Some((izquierda, derecha)) = self.siguiente_pistas() else {
+                hubo_corte = true;
+                break;
+            };
+            if !self.compartido.reproduciendo.load(Ordering::Relaxed) {
+                break;
+            }
+            self.estirador.entrada.push(izquierda);
+            self.estirador.entrada.push(derecha);
+            sonados += 1;
+        }
+        self.estirador.estirar(cuadros);
+
+        for (numero, cuadro) in datos.chunks_mut(canales).enumerate() {
+            let click = self.siguiente_click(posicion + numero as f64 * velocidad, velocidad);
+            let izquierda = self.estirador.salida[numero * 2] + click;
+            let derecha = self.estirador.salida[numero * 2 + 1] + click;
+            poner_cuadro(cuadro, izquierda, derecha);
+        }
+
+        self.anotar_bloque(sonados, hubo_corte);
+    }
+
+    fn anotar_bloque(&self, sonados: u64, hubo_corte: bool) {
         self.compartido
             .cuadros_sonados
             .fetch_add(sonados, Ordering::Relaxed);
         if hubo_corte {
             self.compartido.cortes.fetch_add(1, Ordering::Relaxed);
         }
+    }
+}
+
+// Escribe un cuadro en el formato de la tarjeta; los canales de más quedan en silencio.
+fn poner_cuadro<T>(cuadro: &mut [T], izquierda: f32, derecha: f32)
+where
+    T: Sample + FromSample<f32>,
+{
+    for (canal, muestra) in cuadro.iter_mut().enumerate() {
+        let valor = match canal {
+            0 => izquierda,
+            1 => derecha,
+            _ => 0.0,
+        };
+        *muestra = T::from_sample(valor.clamp(-1.0, 1.0));
     }
 }
 
@@ -649,6 +751,134 @@ mod pruebas {
     fn el_click_sigue_a_tiempo_despues_de_saltar() {
         for inicio in [0.123, 57.321, 123.4567] {
             comprobar_click_a_tiempo(inicio, 48000 * 20);
+        }
+    }
+
+    // Reproduce por el camino real, por bloques, y devuelve el lado izquierdo de lo que sale.
+    fn sonido_de_estudio(mezclador: &mut Mezclador, segundos: f64, rate: u32) -> Vec<f32> {
+        let mut salida = Vec::new();
+        let mut bloque = vec![0.0f32; 960];
+        while (salida.len() as f64) < segundos * rate as f64 {
+            // La prueba corre más rápido que el disco: espera a que haya audio de sobra.
+            while mezclador.colas.iter().any(|c| c.slots() < 4000 && !c.is_abandoned()) {
+                thread::yield_now();
+            }
+            mezclador.escribir(&mut bloque, 2);
+            salida.extend(bloque.chunks(2).map(|cuadro| cuadro[0]));
+        }
+        salida
+    }
+
+    fn inicios_en(muestras: &[f32], umbral: f32) -> Vec<usize> {
+        let mut inicios = Vec::new();
+        let mut silencio = usize::MAX / 2;
+        for (cuadro, muestra) in muestras.iter().enumerate() {
+            if muestra.abs() > umbral {
+                if silencio > 4000 {
+                    inicios.push(cuadro);
+                }
+                silencio = 0;
+            } else {
+                silencio += 1;
+            }
+        }
+        inicios
+    }
+
+    // Saca el sonido de una pista de clicks o del click generado, a otra velocidad.
+    fn clicks_a_velocidad(velocidad: f32, escuchar_generado: bool) -> Vec<usize> {
+        let rate = 48000;
+        let compartido = Arc::new(Compartido::new(1));
+        let parar = Arc::new(AtomicBool::new(false));
+
+        let lector = track::abrir(&rutas_sinteticas()[0]).unwrap();
+        let (productor, consumidor) = RingBuffer::<f32>::new(rate as usize * 2);
+        let parar_lector = parar.clone();
+        let hilo = thread::spawn(move || lector.leer(0.0, rate, productor, parar_lector));
+
+        let (pista, click) = if escuchar_generado { (0.0f32, 1.0f32) } else { (1.0, 0.0) };
+        compartido.fijar_volumen(0, pista);
+        compartido.fijar_volumen(1, click);
+        compartido.fijar_estudio(velocidad, 0.0);
+
+        let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, 0.0);
+        mezclador.ganancias = vec![pista, click];
+        compartido.reproduciendo.store(true, Ordering::Relaxed);
+
+        let salida = sonido_de_estudio(&mut mezclador, 30.0, rate);
+        parar.store(true, Ordering::Relaxed);
+        drop(mezclador);
+        hilo.join().unwrap();
+        inicios_en(&salida, 0.02)
+    }
+
+    // A cualquier velocidad, el click generado debe ir junto a las pistas estiradas.
+    #[test]
+    fn click_y_pistas_siguen_juntos_a_otra_velocidad() {
+        let rate = 48000.0;
+        for velocidad in [0.5f32, 0.75, 1.25] {
+            let pista = clicks_a_velocidad(velocidad, false);
+            let generado = clicks_a_velocidad(velocidad, true);
+
+            let separacion = 0.5 * rate / velocidad as f64;
+            for par in generado.windows(2) {
+                assert!(((par[1] - par[0]) as f64 - separacion).abs() <= 4.0);
+            }
+
+            // El primero se salta: al arrancar, el estirador todavía se está llenando.
+            let mut mayor = 0.0f64;
+            for cuadro in pista.iter().skip(1) {
+                let cercano = generado
+                    .iter()
+                    .map(|g| (*g as f64 - *cuadro as f64).abs())
+                    .fold(f64::MAX, f64::min);
+                mayor = mayor.max(cercano);
+            }
+            let milisegundos = mayor / rate * 1000.0;
+            println!("velocidad {velocidad}: {} clicks, mayor diferencia {milisegundos:.1} ms", pista.len());
+            assert!(pista.len() > 20);
+            assert!(milisegundos < 15.0);
+        }
+    }
+
+    // Da la frecuencia que sale al pasar un tono puro por el estirador.
+    fn frecuencia_de_salida(velocidad: f32, semitonos: f32) -> f64 {
+        let rate = 48000u32;
+        let compartido = Arc::new(Compartido::new(1));
+        compartido.fijar_estudio(velocidad, semitonos);
+
+        let (mut productor, consumidor) = RingBuffer::<f32>::new(rate as usize * 2 * 8);
+        for cuadro in 0..rate as usize * 8 {
+            let muestra = (std::f64::consts::TAU * 440.0 * cuadro as f64 / rate as f64).sin() as f32;
+            productor.push(muestra * 0.5).unwrap();
+            productor.push(muestra * 0.5).unwrap();
+        }
+
+        let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, 0.0);
+        compartido.reproduciendo.store(true, Ordering::Relaxed);
+        let salida = sonido_de_estudio(&mut mezclador, 3.0, rate);
+
+        let ultimo_segundo = &salida[salida.len() - rate as usize..];
+        let cruces = ultimo_segundo
+            .windows(2)
+            .filter(|par| par[0] <= 0.0 && par[1] > 0.0)
+            .count();
+        cruces as f64
+    }
+
+    #[test]
+    fn la_velocidad_no_cambia_el_tono_y_el_tono_sube_o_baja() {
+        let casos = [
+            (0.75f32, 0.0f32, 440.0f64),
+            (0.5, 0.0, 440.0),
+            (1.0, 2.0, 493.88),
+            (0.75, 2.0, 493.88),
+            (1.0, -3.0, 369.99),
+        ];
+        for (velocidad, semitonos, esperada) in casos {
+            let frecuencia = frecuencia_de_salida(velocidad, semitonos);
+            println!("velocidad {velocidad}, semitonos {semitonos}: {frecuencia} Hz");
+            assert!((frecuencia - esperada).abs() < esperada * 0.01);
         }
     }
 

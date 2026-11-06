@@ -39,5 +39,7 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-05: Modal da hoy solo 1 USD al mes sin método de pago; los otros 29 USD exigen agregar tarjeta. Sin decidir: seguir con 1 USD, agregar tarjeta con límite de gasto, o procesar en la PC de desarrollo (RTX 3050). Se decide con el costo real por canción. Mientras tanto, las pruebas de IA de la Fase 0 corren en local y Modal se usa solo para medir.
 - 2026-11-05: se agrega `rtrb` al motor de audio: es la cola entre el hilo que lee del disco y la salida de audio, que no puede quedarse esperando. `rubato` entra desde 1b porque la tarjeta suele ir a 48 kHz y las pistas a 44.1 kHz.
 - 2026-11-05: en el prototipo cada pista tiene su propio hilo de lectura (la especificación decía uno por canción), porque es lo más simple. Se revisa si la medición con 2 núcleos da problemas.
+- 2026-11-05: cambiar el tono (RF-34) sube a prioridad alta y a la Fase 1, porque es importante para el equipo; se prueba junto con la velocidad en 1g, ya que usan la misma librería. El click no pasa por velocidad ni tono: se genera aparte. Sin decidir: si la exportación a REAPER puede salir en otro tono (la especificación dice que siempre sale original).
+- 2026-11-05: el instalador (1h) y la actualización automática (1i) se dejan para cuando la app real esté terminada, antes de repartirla. Salen de la Puerta 1. La actualización sigue siendo obligatoria en la primera versión que se reparta.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

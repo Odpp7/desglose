@@ -26,6 +26,7 @@ pub fn run() {
             commands::pausa,
             commands::buscar,
             commands::click,
+            commands::estudio,
             commands::exportar,
             commands::volumen,
             commands::mute,

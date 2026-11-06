@@ -55,6 +55,11 @@ pub fn click(bpm: f32, tiempos: u32, motor: State<'_, Motor>) -> Result<(), Stri
     motor.click(bpm, tiempos)
 }
 
+#[tauri::command]
+pub fn estudio(velocidad: f32, semitonos: f32, motor: State<'_, Motor>) -> Result<(), String> {
+    motor.estudio(velocidad, semitonos)
+}
+
 // `async` la saca del hilo principal: la ventana no se congela mientras exporta.
 #[tauri::command(async)]
 pub fn exportar(motor: State<'_, Motor>) -> Result<String, String> {

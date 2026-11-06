@@ -123,7 +123,7 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | RF-31 | Mute, solo y volumen por pista, independientes de la mezcla exportada. | Alta | 1 |
 | RF-32 | Repetir un tramo en bucle. | Alta | 1 |
 | RF-33 | Cambiar la velocidad sin cambiar el tono (50% a 125%). | Alta | 1 |
-| RF-34 | Transponer el tono en semitonos. | Media | 2 |
+| RF-34 | Transponer el tono en semitonos. | Alta | 1 |
 | RF-35 | Ver acordes sobre la línea de tiempo y en una hoja de acordes por sección. | Alta | 2 |
 | RF-36 | Transcribir las notas de cualquier pista en un tramo: lista de notas (E, G, A) y piano roll. | Alta | 2 |
 | RF-37 | Tablatura aproximada de guitarra o bajo, con afinación configurable. | Media | 2 |
@@ -665,7 +665,7 @@ La Fase 1 ya entrega lo principal: crear la secuencia sola, editarla y exportarl
 | --- | --- | --- |
 | 0 · Pruebas | Motor de audio con 8 pistas, IA con 3-5 canciones, abrir .RPP en REAPER, medir costo de Modal | Audio sin desfase, IA útil y .RPP que abre |
 | 1 · Secuencia | Crear secuencia automática, editar secciones, tempo y compases, click y voz guía, pistas para exportar, exportar a REAPER, estudio básico | Una secuencia propia usada en un culto |
-| 2 · Estudio | Acordes y tonalidad, notas y piano roll, tablatura y letra, reordenar arreglo, transponer | La banda la usa cada semana |
+| 2 · Estudio | Acordes y tonalidad, notas y piano roll, tablatura y letra, reordenar arreglo | La banda la usa cada semana |
 | 3 · Después | Exportar MIDI, entrenar la IA con sus correcciones, versión Android | — |
 
 Cada fase termina en una puerta: no se pasa a la siguiente hasta cumplirla.
@@ -673,8 +673,8 @@ Cada fase termina en una puerta: no se pasa a la siguiente hasta cumplirla.
 | Fase | Requerimientos |
 | --- | --- |
 | 0 · Pruebas | Ninguno de la lista: prototipos y mediciones (ver lista abajo) |
-| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-33, RF-40 a RF-45, RF-47 |
-| 2 · Estudio | RF-12, RF-14, RF-19, RF-34 a RF-39 |
+| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-34, RF-40 a RF-45, RF-47 |
+| 2 · Estudio | RF-12, RF-14, RF-19, RF-35 a RF-39 |
 | 3 · Después | RF-46, entrenar la IA con sus correcciones, versión Android |
 
 **Fase 0: qué se prueba antes de construir pantallas**

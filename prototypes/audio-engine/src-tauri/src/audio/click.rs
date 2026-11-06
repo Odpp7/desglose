@@ -29,10 +29,21 @@ impl Click {
     }
 
     // Devuelve la muestra del click en un cuadro de la canción (0 = inicio).
+    #[cfg(test)]
     pub fn muestra(&self, cuadro: u64) -> f32 {
-        let tiempo = (cuadro as f64 / self.cuadros_por_tiempo).floor();
+        self.muestra_en(cuadro as f64, 1.0)
+    }
+
+    // Igual, pero a otra velocidad. El click cae donde toca en la canción, y su sonido
+    // no se estira: dura lo mismo y suena igual aunque la canción vaya lenta.
+    pub fn muestra_en(&self, posicion: f64, velocidad: f64) -> f32 {
+        if posicion < 0.0 {
+            return 0.0;
+        }
+
+        let tiempo = (posicion / self.cuadros_por_tiempo).floor();
         let inicio = tiempo * self.cuadros_por_tiempo;
-        let segundos = (cuadro as f64 - inicio) / self.rate;
+        let segundos = (posicion - inicio) / self.rate / velocidad;
         if segundos >= SEGUNDOS_SONIDO {
             return 0.0;
         }

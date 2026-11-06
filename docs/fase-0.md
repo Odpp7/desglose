@@ -31,13 +31,13 @@ Se hace en sub-pasos, probando cada uno antes del siguiente:
 - [x] **1d.** Enviar la posición a la interfaz por eventos y mostrar el tiempo; buscar a un punto.
 - [x] **1e.** Generar un click desde BPM y compás (acento en el 1).
 - [x] **1f.** Exportar la mezcla a WAV 24 bits sin pasar por la tarjeta de sonido (`hound`).
-- [ ] **1g.** Cambio de velocidad sin cambiar el tono (`signalsmith-stretch`).
-- [ ] **1h.** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 4 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.
-- [ ] **1i.** Actualización automática: instalar una versión 0.1 en la máquina virtual, publicar una 0.2 y comprobar que se actualiza sola, sin pedirle nada al usuario.
+- [x] **1g.** Cambio de velocidad sin cambiar el tono, y cambio de tono en semitonos (`signalsmith-stretch`). Medido (2026-11-05, versión optimizada, 2 hilos, 8 pistas de ruido al 75% y +2 semitonos): 0 cortes, 215 MB, motor en 5,4% de un hilo; la ventana gasta más, hasta 32%. Calidad aprobada a oído con una canción real, sobre la mezcla completa; falta oírlo con pistas separadas por la IA.
+- [ ] **1h (se hace al terminar la app real).** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 4 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.
+- [ ] **1i (se hace al terminar la app real).** Actualización automática: instalar una versión 0.1 en la máquina virtual, publicar una 0.2 y comprobar que se actualiza sola, sin pedirle nada al usuario.
 
 **Medir:** 5 minutos con 8 pistas sin desfase ni cortes; RAM de la app menor a 400 MB; uso de CPU razonable; WAV exportado idéntico a lo que se escucha.
 
-**Pasa si:** todo lo anterior se cumple con 2 núcleos y la app instala y abre en la máquina virtual. La simulación no reemplaza a la PC real: el procesador de desarrollo es más rápido y el audio dentro de una máquina virtual no sirve para medir cortes. La prueba definitiva es la primera instalación real.
+**Pasa si:** todo lo anterior se cumple con 2 núcleos. La instalación en una máquina virtual se comprueba al terminar la app real. La simulación no reemplaza a la PC real: el procesador de desarrollo es más rápido y el audio dentro de una máquina virtual no sirve para medir cortes. La prueba definitiva es la primera instalación real.
 
 Para probar sin la IA y sin canciones, se generan 8 pistas sintéticas con FFmpeg: clicks idénticos en todas, que además sirven para medir el desfase. Después sirven las pistas de la secuencia de referencia del encargado o cualquier multitrack gratuito.
 
@@ -78,8 +78,6 @@ Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba sol
 Se pasa a la Fase 1 (la app completa) cuando:
 
 - [ ] el motor de audio no se desfasa y respeta la RAM en la simulación de la PC modesta,
-- [ ] el instalador funciona en una máquina virtual limpia sin instalar nada más,
-- [ ] la app se actualiza sola,
 - [ ] la IA da resultados útiles con sus canciones,
 - [ ] el `.RPP` abre bien en REAPER,
 - [ ] hay una forma de procesar las canciones que cabe en el costo cero (ver el tema abierto de Modal en `docs/decisiones.md`).

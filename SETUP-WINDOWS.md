@@ -12,12 +12,12 @@ Después de instalar cada cosa, **cierra y vuelve a abrir PowerShell**.
 - [x] Rust (cargo 1.93)
 - [x] Python 3.11.9
 - [x] FFmpeg 9
+- [x] LLVM 23 (`signalsmith-stretch` lo necesita para compilar; solo en esta PC)
 
 ## Falta (revisado el 2026-11-05)
 
 - [ ] uv: no está instalado (sección 1). Hace falta en el paso 3 de la Fase 0.
 - [ ] REAPER 7: no se encontró en esta PC. Hace falta en el paso 2; confirmar si está en otra ruta o en versión portable.
-- [ ] LLVM: `signalsmith-stretch` usa `bindgen`, que necesita `libclang` para compilar. Hace falta en el sub-paso 1g, solo en esta PC (`winget install --id LLVM.LLVM -e`).
 
 ## 1. uv (administra Python y las dependencias del backend)
 
