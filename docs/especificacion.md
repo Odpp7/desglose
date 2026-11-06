@@ -63,7 +63,7 @@ Un solo botón crea la secuencia; todo lo demás es revisar, editar, estudiar y 
 
 ## 3. Requerimientos funcionales
 
-Son 46 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** = importante. La fase indica en qué entrega entra (sección 14).
+Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** = importante. La fase indica en qué entrega entra (sección 14).
 
 **A. Canciones**
 
@@ -113,6 +113,7 @@ Son 46 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | RF-27 | Avisos libres en cualquier compás ("Solo piano", "Última vez", "Corte"). | Media | 1 |
 | RF-28 | Banco de frases editable: escribir el texto y la app genera la voz, o grabarla con micrófono. | Alta | 1 |
 | RF-29 | Click y guía suenan siempre en tiempo aunque se cambie la velocidad de práctica. | Alta | 1 |
+| RF-47 | El click sale solo del análisis de la canción; si se edita, un botón lo devuelve al original detectado. | Alta | 1 |
 
 **E. Estudio**
 
@@ -672,7 +673,7 @@ Cada fase termina en una puerta: no se pasa a la siguiente hasta cumplirla.
 | Fase | Requerimientos |
 | --- | --- |
 | 0 · Pruebas | Ninguno de la lista: prototipos y mediciones (ver lista abajo) |
-| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-33, RF-40 a RF-45 |
+| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-33, RF-40 a RF-45, RF-47 |
 | 2 · Estudio | RF-12, RF-14, RF-19, RF-34 a RF-39 |
 | 3 · Después | RF-46, entrenar la IA con sus correcciones, versión Android |
 

@@ -15,6 +15,7 @@ use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, Stream
 use rtrb::{Consumer, RingBuffer};
 use serde::Serialize;
 
+use super::click::Click;
 use super::track;
 
 // Segundos de audio que cada cola guarda por adelantado.
@@ -55,18 +56,27 @@ struct Compartido {
     callando: AtomicBool, // baja todo a cero antes de un salto, para que no suene un golpe
     cortes: AtomicU64,
     cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
-    pistas: Vec<ControlPista>,
+    bpm: AtomicU32, // f32 guardado como bits, igual que el volumen
+    tiempos_por_compas: AtomicU32,
+    pistas: Vec<ControlPista>, // las pistas y, al final, el click
 }
 
 impl Compartido {
     fn new(total_pistas: usize) -> Self {
+        let mut pistas: Vec<ControlPista> = (0..total_pistas).map(|_| ControlPista::new()).collect();
+        let click = ControlPista::new();
+        click.volumen.store(0.0f32.to_bits(), Ordering::Relaxed);
+        pistas.push(click);
+
         Self {
             reproduciendo: AtomicBool::new(false),
             terminado: AtomicBool::new(false),
             callando: AtomicBool::new(false),
             cortes: AtomicU64::new(0),
             cuadros_sonados: AtomicU64::new(0),
-            pistas: (0..total_pistas).map(|_| ControlPista::new()).collect(),
+            bpm: AtomicU32::new(120.0f32.to_bits()),
+            tiempos_por_compas: AtomicU32::new(4),
+            pistas,
         }
     }
 }
@@ -116,7 +126,7 @@ impl Sesion {
         }
         esperar_audio(&colas, rate);
 
-        let mezclador = Mezclador::new(colas, compartido.clone(), rate);
+        let mezclador = Mezclador::new(colas, compartido.clone(), rate, inicio);
         let stream = match formato {
             SampleFormat::F32 => abrir_salida::<f32>(&dispositivo, config, mezclador),
             SampleFormat::I16 => abrir_salida::<i16>(&dispositivo, config, mezclador),
@@ -214,6 +224,13 @@ impl Motor {
         self.con_compartido(|c| c.reproduciendo.store(false, Ordering::Relaxed))
     }
 
+    pub fn click(&self, bpm: f32, tiempos_por_compas: u32) -> Result<(), String> {
+        self.con_compartido(|c| {
+            c.bpm.store(bpm.to_bits(), Ordering::Relaxed);
+            c.tiempos_por_compas.store(tiempos_por_compas, Ordering::Relaxed);
+        })
+    }
+
     pub fn volumen(&self, indice: usize, valor: f32) -> Result<(), String> {
         self.con_pista(indice, |p| {
             p.volumen.store(valor.to_bits(), Ordering::Relaxed)
@@ -275,22 +292,37 @@ struct Mezclador {
     ganancias: Vec<f32>, // volumen que suena ahora; se acerca poco a poco al objetivo
     objetivos: Vec<f32>,
     paso_rampa: f32,
+    rate: u32,
+    cuadro: u64, // cuadro de la canción que va a sonar; de aquí sale el click
+    click: Click,
 }
 
 impl Mezclador {
-    fn new(colas: Vec<Consumer<f32>>, compartido: Arc<Compartido>, rate: u32) -> Self {
-        let total = colas.len();
+    fn new(
+        colas: Vec<Consumer<f32>>,
+        compartido: Arc<Compartido>,
+        rate: u32,
+        inicio: f64,
+    ) -> Self {
+        let total = compartido.pistas.len();
         Self {
             colas,
             compartido,
             ganancias: vec![0.0; total],
             objetivos: vec![0.0; total],
             paso_rampa: 1.0 / (SEGUNDOS_RAMPA * rate as f32),
+            rate,
+            cuadro: (inicio * rate as f64).round() as u64,
+            click: Click::new(120.0, 4, rate),
         }
     }
 
     // Lee los controles una vez por bloque, no en cada muestra.
     fn leer_controles(&mut self) {
+        let bpm = f32::from_bits(self.compartido.bpm.load(Ordering::Relaxed));
+        let tiempos = self.compartido.tiempos_por_compas.load(Ordering::Relaxed);
+        self.click = Click::new(bpm, tiempos, self.rate);
+
         let pistas = &self.compartido.pistas;
         let callando = self.compartido.callando.load(Ordering::Relaxed);
         let hay_solo = pistas.iter().any(|p| p.solo.load(Ordering::Relaxed));
@@ -325,15 +357,23 @@ impl Mezclador {
         let mut izquierda = 0.0;
         let mut derecha = 0.0;
         for (indice, cola) in self.colas.iter_mut().enumerate() {
-            let diferencia = self.objetivos[indice] - self.ganancias[indice];
-            self.ganancias[indice] += diferencia.clamp(-self.paso_rampa, self.paso_rampa);
+            let ganancia = &mut self.ganancias[indice];
+            *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
 
             if cola.slots() >= 2 {
-                izquierda += cola.pop().unwrap_or(0.0) * self.ganancias[indice];
-                derecha += cola.pop().unwrap_or(0.0) * self.ganancias[indice];
+                izquierda += cola.pop().unwrap_or(0.0) * *ganancia;
+                derecha += cola.pop().unwrap_or(0.0) * *ganancia;
             }
         }
-        Some((izquierda, derecha))
+
+        // El click va en la última posición de los controles.
+        let indice = self.colas.len();
+        let ganancia = &mut self.ganancias[indice];
+        *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
+        let click = self.click.muestra(self.cuadro) * *ganancia;
+        self.cuadro += 1;
+
+        Some((izquierda + click, derecha + click))
     }
 
     // Llena el bloque que pide Windows. En pausa escribe silencio y no toca las colas,
@@ -456,7 +496,7 @@ mod pruebas {
                 .store(signo.to_bits(), Ordering::Relaxed);
         }
 
-        let mut mezclador = Mezclador::new(colas, compartido.clone(), rate);
+        let mut mezclador = Mezclador::new(colas, compartido.clone(), rate, inicio);
         compartido.reproduciendo.store(true, Ordering::Relaxed);
 
         let mut bloque = vec![0.0f32; 960];
@@ -491,6 +531,81 @@ mod pruebas {
         }
     }
 
+    // Devuelve dónde empieza cada click, escuchando solo la pista o solo el generado.
+    fn inicios_de_clicks(inicio: f64, cuadros_a_medir: u64, escuchar_generado: bool) -> Vec<u64> {
+        let rate = 48000;
+        let compartido = Arc::new(Compartido::new(1));
+        let parar = Arc::new(AtomicBool::new(false));
+
+        let lector = track::abrir(&rutas_sinteticas()[0]).unwrap();
+        let (productor, consumidor) = RingBuffer::<f32>::new(rate as usize * 2);
+        let parar_lector = parar.clone();
+        let hilo = thread::spawn(move || lector.leer(inicio, rate, productor, parar_lector));
+
+        let (pista, click) = if escuchar_generado { (0.0f32, 1.0f32) } else { (1.0, 0.0) };
+        compartido.pistas[0].volumen.store(pista.to_bits(), Ordering::Relaxed);
+        compartido.pistas[1].volumen.store(click.to_bits(), Ordering::Relaxed);
+
+        let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, inicio);
+        // Las ganancias arrancan ya en su valor para no perder el primer click en la rampa.
+        mezclador.ganancias = vec![pista, click];
+        compartido.reproduciendo.store(true, Ordering::Relaxed);
+
+        // Se pide cuadro por cuadro: si el lector va atrasado se reintenta sin avanzar,
+        // así la cuenta de cuadros es exacta aunque esta prueba corra más rápido que el disco.
+        mezclador.leer_controles();
+        let fin_de_cancion = ((300.0 - inicio) * rate as f64) as u64;
+        let mut inicios = Vec::new();
+        let mut silencio = 1_000_000u64;
+        let mut cuadro = 0u64;
+        while cuadro < cuadros_a_medir.min(fin_de_cancion) {
+            let Some((izquierda, _)) = mezclador.siguiente_cuadro() else {
+                continue;
+            };
+            if izquierda.abs() > 0.05 {
+                if silencio > 1000 {
+                    inicios.push(cuadro);
+                }
+                silencio = 0;
+            } else {
+                silencio += 1;
+            }
+            cuadro += 1;
+        }
+        parar.store(true, Ordering::Relaxed);
+        hilo.join().unwrap();
+        inicios
+    }
+
+    // A 120 BPM el click generado debe caer junto al click de la pista de prueba.
+    fn comprobar_click_a_tiempo(inicio: f64, cuadros_a_medir: u64) {
+        let pista = inicios_de_clicks(inicio, cuadros_a_medir, false);
+        let generado = inicios_de_clicks(inicio, cuadros_a_medir, true);
+
+        assert!(pista.len() > 10);
+        assert_eq!(pista.len(), generado.len());
+        let mayor = pista
+            .iter()
+            .zip(&generado)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap();
+        println!("inicio {inicio}: {} clicks, diferencia máxima {mayor} cuadros", pista.len());
+        assert!(mayor <= 8);
+    }
+
+    #[test]
+    fn el_click_cae_a_tiempo_toda_la_cancion() {
+        comprobar_click_a_tiempo(0.0, u64::MAX);
+    }
+
+    #[test]
+    fn el_click_sigue_a_tiempo_despues_de_saltar() {
+        for inicio in [0.123, 57.321, 123.4567] {
+            comprobar_click_a_tiempo(inicio, 48000 * 20);
+        }
+    }
+
     // Mute, solo y volumen: comprueba cuánto suena la mezcla en cada caso.
     #[test]
     fn mute_solo_y_volumen() {
@@ -502,7 +617,7 @@ mod pruebas {
             productores.push(productor);
             colas.push(consumidor);
         }
-        let mut mezclador = Mezclador::new(colas, compartido.clone(), 1000);
+        let mut mezclador = Mezclador::new(colas, compartido.clone(), 1000, 0.0);
         compartido.reproduciendo.store(true, Ordering::Relaxed);
 
         // Toda la señal vale 1: lo que sale es la suma de las ganancias.

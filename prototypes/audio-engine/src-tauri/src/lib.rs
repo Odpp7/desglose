@@ -25,6 +25,7 @@ pub fn run() {
             commands::play,
             commands::pausa,
             commands::buscar,
+            commands::click,
             commands::volumen,
             commands::mute,
             commands::solo

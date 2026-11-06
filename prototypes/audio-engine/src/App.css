@@ -39,6 +39,15 @@ button {
   padding: 0;
 }
 
+.tiempo label {
+  margin: 0;
+}
+
+.tiempo .corto {
+  flex: 0 0 70px;
+  padding: 8px;
+}
+
 .pista {
   display: flex;
   align-items: center;

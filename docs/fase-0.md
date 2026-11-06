@@ -29,7 +29,7 @@ Se hace en sub-pasos, probando cada uno antes del siguiente:
 - [x] **1c.** Reproducir **8 pistas** juntas con un solo reloj. Mute, solo y volumen por pista.
 - [x] **1c+.** Primera medición con recursos limitados: la app solo con 2 núcleos de la CPU (`start /affinity 3`), 8 pistas durante 5 minutos, midiendo RAM, CPU y cortes. Resultado (2026-11-05, versión optimizada, 2 hilos de un mismo núcleo, sin interfaz final): con ruido de 24 bits, el peor caso, 0 cortes, 205 MB de RAM privada sin crecer y 3% de un hilo en promedio (5,5% máximo). Con clicks: 0 cortes, 203 MB y 3,3%.
 - [x] **1d.** Enviar la posición a la interfaz por eventos y mostrar el tiempo; buscar a un punto.
-- [ ] **1e.** Generar un click desde BPM y compás (acento en el 1).
+- [x] **1e.** Generar un click desde BPM y compás (acento en el 1).
 - [ ] **1f.** Exportar la mezcla a WAV 24 bits sin pasar por la tarjeta de sonido (`hound`).
 - [ ] **1g.** Cambio de velocidad sin cambiar el tono (`signalsmith-stretch`).
 - [ ] **1h.** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 4 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.

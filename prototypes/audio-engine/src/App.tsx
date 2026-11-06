@@ -24,6 +24,9 @@ function formatoTiempo(segundos: number) {
   return `${minutos}:${String(resto).padStart(2, "0")}`;
 }
 
+// En la app real estos valores salen del análisis de la canción.
+const CLICK_ORIGINAL = { bpm: 120, tiempos: 4 };
+
 function App() {
   const [carpeta, setCarpeta] = useState("");
   const [pistas, setPistas] = useState<Pista[]>([]);
@@ -31,6 +34,8 @@ function App() {
   const [estado, setEstado] = useState<Estado | null>(null);
   // Mientras se arrastra la barra guarda a dónde va; al soltar se hace el salto.
   const [arrastre, setArrastre] = useState<number | null>(null);
+  const [bpm, setBpm] = useState(CLICK_ORIGINAL.bpm);
+  const [tiempos, setTiempos] = useState(CLICK_ORIGINAL.tiempos);
 
   useEffect(() => {
     const dejarDeEscuchar = listen<Estado>("estado", (evento) => setEstado(evento.payload));
@@ -54,10 +59,22 @@ function App() {
       // Quita las comillas que agrega "Copiar como ruta de acceso" en Windows.
       const limpia = carpeta.trim().replace(/^"|"$/g, "");
       const nombres = await invoke<string[]>("cargar_carpeta", { carpeta: limpia });
-      setPistas(nombres.map((nombre) => ({ nombre, volumen: 1, mute: false, solo: false })));
+      const filas = nombres.map((nombre) => ({ nombre, volumen: 1, mute: false, solo: false }));
+      // El click va como una fila más, después de las pistas.
+      setPistas([...filas, { nombre: "Click", volumen: 0.5, mute: false, solo: false }]);
+      await invoke("volumen", { indice: nombres.length, valor: 0.5 });
+      await invoke("click", { bpm, tiempos });
     } catch (e) {
       setPistas([]);
       setError(String(e));
+    }
+  }
+
+  function cambiarClick(nuevoBpm: number, nuevosTiempos: number) {
+    setBpm(nuevoBpm);
+    setTiempos(nuevosTiempos);
+    if (pistas.length > 0 && nuevoBpm > 0) {
+      ejecutar("click", { bpm: nuevoBpm, tiempos: nuevosTiempos });
     }
   }
 
@@ -118,6 +135,33 @@ function App() {
         </button>
         <button disabled={pistas.length === 0} onClick={() => ejecutar("pausa")}>
           Pausa
+        </button>
+      </div>
+
+      <div className="fila tiempo">
+        <label htmlFor="bpm">BPM</label>
+        <input
+          id="bpm"
+          className="corto"
+          type="number"
+          min={30}
+          max={300}
+          value={bpm}
+          onChange={(e) => cambiarClick(Number(e.target.value), tiempos)}
+        />
+        <label htmlFor="compas">Compás</label>
+        <select
+          id="compas"
+          value={tiempos}
+          onChange={(e) => cambiarClick(bpm, Number(e.target.value))}
+        >
+          <option value={4}>4/4</option>
+          <option value={3}>3/4</option>
+          <option value={6}>6/8</option>
+          <option value={12}>12/8</option>
+        </select>
+        <button onClick={() => cambiarClick(CLICK_ORIGINAL.bpm, CLICK_ORIGINAL.tiempos)}>
+          Volver al original
         </button>
       </div>
 
