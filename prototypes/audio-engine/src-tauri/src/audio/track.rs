@@ -72,6 +72,10 @@ pub fn abrir(ruta: &Path) -> Result<Lector, String> {
 }
 
 impl Lector {
+    pub fn rate(&self) -> u32 {
+        self.rate
+    }
+
     pub fn duracion(&self) -> f64 {
         self.cuadros_totales as f64 / self.rate as f64
     }
@@ -118,6 +122,14 @@ impl Lector {
             }
         }
 
+        // Cuadros que debe entregar en total: así la pista dura lo justo, sin cola de más.
+        let mut restantes = if self.cuadros_totales == 0 {
+            u64::MAX
+        } else {
+            let segundos = (self.duracion() - inicio).max(0.0);
+            (segundos * rate_salida as f64).round() as u64
+        };
+
         // Si el punto pedido queda después del final, la pista simplemente no suena.
         let Ok(mut descartar) = self.ubicar(inicio) else {
             return;
@@ -148,7 +160,7 @@ impl Lector {
                 pendiente.push(if canales > 1 { cuadro[1] } else { cuadro[0] });
             }
 
-            if !enviar(&mut pendiente, conversor.as_mut(), &mut cola, &parar) {
+            if !enviar(&mut pendiente, conversor.as_mut(), &mut restantes, &mut cola, &parar) {
                 return;
             }
         }
@@ -156,7 +168,7 @@ impl Lector {
         // El resampler guarda audio por dentro; este silencio final empuja lo último que le queda.
         if conversor.is_some() {
             pendiente.resize(pendiente.len() + BLOQUE * 4, 0.0);
-            enviar(&mut pendiente, conversor.as_mut(), &mut cola, &parar);
+            enviar(&mut pendiente, conversor.as_mut(), &mut restantes, &mut cola, &parar);
         }
         // Al terminar, `cola` se destruye y la salida de audio sabe que la pista acabó.
     }
@@ -194,11 +206,12 @@ impl Conversor {
 fn enviar(
     pendiente: &mut Vec<f32>,
     conversor: Option<&mut Conversor>,
+    restantes: &mut u64,
     cola: &mut Producer<f32>,
     parar: &AtomicBool,
 ) -> bool {
     let Some(conversor) = conversor else {
-        let seguir = empujar(pendiente, cola, parar);
+        let seguir = empujar(pendiente, restantes, cola, parar);
         pendiente.clear();
         return seguir;
     };
@@ -221,7 +234,7 @@ fn enviar(
 
         let saltar = conversor.recortar.min(escritos);
         conversor.recortar -= saltar;
-        if !empujar(&conversor.salida[saltar * 2..escritos * 2], cola, parar) {
+        if !empujar(&conversor.salida[saltar * 2..escritos * 2], restantes, cola, parar) {
             return false;
         }
         pendiente.drain(..cuadros * 2);
@@ -229,8 +242,17 @@ fn enviar(
 }
 
 // Mete muestras en la cola; si está llena espera un poco. Así la RAM no crece.
-fn empujar(muestras: &[f32], cola: &mut Producer<f32>, parar: &AtomicBool) -> bool {
-    for &muestra in muestras {
+// Nunca pasa de `restantes`: lo que sobre al final no se entrega.
+fn empujar(
+    muestras: &[f32],
+    restantes: &mut u64,
+    cola: &mut Producer<f32>,
+    parar: &AtomicBool,
+) -> bool {
+    let cuadros = (muestras.len() as u64 / 2).min(*restantes);
+    *restantes -= cuadros;
+
+    for &muestra in &muestras[..cuadros as usize * 2] {
         while cola.push(muestra).is_err() {
             if parar.load(Ordering::Relaxed) {
                 return false;
@@ -283,7 +305,7 @@ mod pruebas {
         hilo.join().unwrap();
 
         let esperados = ((300.0 - inicio) * rate as f64) as usize;
-        assert!(cuadros >= esperados && cuadros < esperados + 8192, "{cuadros} cuadros");
+        assert!(cuadros.abs_diff(esperados) <= 1, "{cuadros} cuadros");
         assert_eq!(clicks.len(), total_clicks);
 
         let esperado = (primer_click * rate as f64) as usize;

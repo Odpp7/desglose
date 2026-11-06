@@ -25,6 +25,7 @@ cpal = "0.18.2"
 rubato = "5.0.1"
 rtrb = "0.4.1"
 symphonia = { version = "0.6.1", default-features = false, features = ["flac", "wav", "pcm"] }
+hound = "3.5.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

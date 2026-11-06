@@ -36,6 +36,8 @@ function App() {
   const [arrastre, setArrastre] = useState<number | null>(null);
   const [bpm, setBpm] = useState(CLICK_ORIGINAL.bpm);
   const [tiempos, setTiempos] = useState(CLICK_ORIGINAL.tiempos);
+  const [exportando, setExportando] = useState(false);
+  const [exportado, setExportado] = useState("");
 
   useEffect(() => {
     const dejarDeEscuchar = listen<Estado>("estado", (evento) => setEstado(evento.payload));
@@ -76,6 +78,21 @@ function App() {
     if (pistas.length > 0 && nuevoBpm > 0) {
       ejecutar("click", { bpm: nuevoBpm, tiempos: nuevosTiempos });
     }
+  }
+
+  async function exportar() {
+    setError("");
+    setExportado("");
+    setExportando(true);
+    try {
+      const inicio = performance.now();
+      const ruta = await invoke<string>("exportar");
+      const segundos = ((performance.now() - inicio) / 1000).toFixed(1);
+      setExportado(`Guardado en ${segundos} s: ${ruta}`);
+    } catch (e) {
+      setError(String(e));
+    }
+    setExportando(false);
   }
 
   async function soltarBarra() {
@@ -136,6 +153,9 @@ function App() {
         <button disabled={pistas.length === 0} onClick={() => ejecutar("pausa")}>
           Pausa
         </button>
+        <button disabled={pistas.length === 0 || exportando} onClick={exportar}>
+          {exportando ? "Exportando..." : "Exportar"}
+        </button>
       </div>
 
       <div className="fila tiempo">
@@ -185,6 +205,7 @@ function App() {
       <p>
         {textoEstado()} · Cortes: {estado?.cortes ?? 0}
       </p>
+      {exportado && <p>{exportado}</p>}
       {error && <p className="error">{error}</p>}
 
       {pistas.map((pista, indice) => (

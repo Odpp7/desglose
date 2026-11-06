@@ -16,6 +16,7 @@ use rtrb::{Consumer, RingBuffer};
 use serde::Serialize;
 
 use super::click::Click;
+use super::render;
 use super::track;
 
 // Segundos de audio que cada cola guarda por adelantado.
@@ -29,9 +30,9 @@ const SEGUNDOS_ANTES_DE_SONAR: f32 = 0.25;
 
 // Controles de una pista. Son atómicos: se leen y escriben sin bloquear,
 // porque la salida de audio no puede quedarse esperando a la interfaz.
-struct ControlPista {
+pub(super) struct ControlPista {
     volumen: AtomicU32, // f32 guardado como bits: no existe un f32 atómico
-    mute: AtomicBool,
+    pub(super) mute: AtomicBool,
     solo: AtomicBool,
 }
 
@@ -50,19 +51,19 @@ impl ControlPista {
 }
 
 // Datos que comparten la interfaz y la salida de audio.
-struct Compartido {
+pub(super) struct Compartido {
     reproduciendo: AtomicBool,
-    terminado: AtomicBool,
+    pub(super) terminado: AtomicBool,
     callando: AtomicBool, // baja todo a cero antes de un salto, para que no suene un golpe
     cortes: AtomicU64,
     cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
     bpm: AtomicU32, // f32 guardado como bits, igual que el volumen
     tiempos_por_compas: AtomicU32,
-    pistas: Vec<ControlPista>, // las pistas y, al final, el click
+    pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click
 }
 
 impl Compartido {
-    fn new(total_pistas: usize) -> Self {
+    pub(super) fn new(total_pistas: usize) -> Self {
         let mut pistas: Vec<ControlPista> = (0..total_pistas).map(|_| ControlPista::new()).collect();
         let click = ControlPista::new();
         click.volumen.store(0.0f32.to_bits(), Ordering::Relaxed);
@@ -78,6 +79,37 @@ impl Compartido {
             tiempos_por_compas: AtomicU32::new(4),
             pistas,
         }
+    }
+
+    pub(super) fn fijar_volumen(&self, indice: usize, valor: f32) {
+        self.pistas[indice]
+            .volumen
+            .store(valor.to_bits(), Ordering::Relaxed);
+    }
+
+    pub(super) fn fijar_click(&self, bpm: f32, tiempos_por_compas: u32) {
+        self.bpm.store(bpm.to_bits(), Ordering::Relaxed);
+        self.tiempos_por_compas
+            .store(tiempos_por_compas, Ordering::Relaxed);
+    }
+
+    // Copia solo los controles, para exportar sin tocar lo que está sonando.
+    fn copiar_controles(&self) -> Self {
+        let copia = Self::new(self.pistas.len() - 1);
+        copia.fijar_click(
+            f32::from_bits(self.bpm.load(Ordering::Relaxed)),
+            self.tiempos_por_compas.load(Ordering::Relaxed),
+        );
+        for (indice, pista) in self.pistas.iter().enumerate() {
+            copia.fijar_volumen(indice, pista.volumen());
+            copia.pistas[indice]
+                .mute
+                .store(pista.mute.load(Ordering::Relaxed), Ordering::Relaxed);
+            copia.pistas[indice]
+                .solo
+                .store(pista.solo.load(Ordering::Relaxed), Ordering::Relaxed);
+        }
+        copia
     }
 }
 
@@ -225,10 +257,24 @@ impl Motor {
     }
 
     pub fn click(&self, bpm: f32, tiempos_por_compas: u32) -> Result<(), String> {
-        self.con_compartido(|c| {
-            c.bpm.store(bpm.to_bits(), Ordering::Relaxed);
-            c.tiempos_por_compas.store(tiempos_por_compas, Ordering::Relaxed);
-        })
+        self.con_compartido(|c| c.fijar_click(bpm, tiempos_por_compas))
+    }
+
+    // Exporta junto a la carpeta de las pistas y devuelve la ruta del archivo.
+    // No se guarda dentro de esa carpeta, porque se cargaría como una pista más.
+    pub fn exportar(&self) -> Result<PathBuf, String> {
+        let (rutas, controles) = {
+            let sesion = self.sesion.lock().unwrap();
+            let sesion = sesion.as_ref().ok_or("Primero carga las pistas")?;
+            (sesion.rutas.clone(), sesion.compartido.copiar_controles())
+        };
+
+        let carpeta = rutas[0].parent().ok_or("La carpeta de las pistas no es válida")?;
+        let nombre = carpeta.file_name().unwrap_or_default().to_string_lossy();
+        let destino = carpeta.with_file_name(format!("{nombre}-mezcla.wav"));
+
+        render::exportar(&rutas, controles, &destino)?;
+        Ok(destino)
     }
 
     pub fn volumen(&self, indice: usize, valor: f32) -> Result<(), String> {
@@ -286,11 +332,11 @@ impl Motor {
 }
 
 // Suma las pistas aplicando volumen, mute y solo. Vive dentro de la salida de audio.
-struct Mezclador {
+pub(super) struct Mezclador {
     colas: Vec<Consumer<f32>>,
     compartido: Arc<Compartido>,
-    ganancias: Vec<f32>, // volumen que suena ahora; se acerca poco a poco al objetivo
-    objetivos: Vec<f32>,
+    pub(super) ganancias: Vec<f32>, // volumen que suena ahora; se acerca poco a poco al objetivo
+    pub(super) objetivos: Vec<f32>,
     paso_rampa: f32,
     rate: u32,
     cuadro: u64, // cuadro de la canción que va a sonar; de aquí sale el click
@@ -298,7 +344,7 @@ struct Mezclador {
 }
 
 impl Mezclador {
-    fn new(
+    pub(super) fn new(
         colas: Vec<Consumer<f32>>,
         compartido: Arc<Compartido>,
         rate: u32,
@@ -318,7 +364,7 @@ impl Mezclador {
     }
 
     // Lee los controles una vez por bloque, no en cada muestra.
-    fn leer_controles(&mut self) {
+    pub(super) fn leer_controles(&mut self) {
         let bpm = f32::from_bits(self.compartido.bpm.load(Ordering::Relaxed));
         let tiempos = self.compartido.tiempos_por_compas.load(Ordering::Relaxed);
         self.click = Click::new(bpm, tiempos, self.rate);
@@ -336,7 +382,7 @@ impl Mezclador {
     }
 
     // Devuelve el siguiente cuadro mezclado, o None si alguna pista aún no tiene audio.
-    fn siguiente_cuadro(&mut self) -> Option<(f32, f32)> {
+    pub(super) fn siguiente_cuadro(&mut self) -> Option<(f32, f32)> {
         let mut quedan_pistas = false;
         for cola in &self.colas {
             if cola.slots() >= 2 {

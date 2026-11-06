@@ -55,6 +55,13 @@ pub fn click(bpm: f32, tiempos: u32, motor: State<'_, Motor>) -> Result<(), Stri
     motor.click(bpm, tiempos)
 }
 
+// `async` la saca del hilo principal: la ventana no se congela mientras exporta.
+#[tauri::command(async)]
+pub fn exportar(motor: State<'_, Motor>) -> Result<String, String> {
+    let destino = motor.exportar()?;
+    Ok(destino.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn volumen(indice: usize, valor: f32, motor: State<'_, Motor>) -> Result<(), String> {
     motor.volumen(indice, valor)
