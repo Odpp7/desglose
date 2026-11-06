@@ -14,9 +14,10 @@ use rubato::{Fft, FixedSync, Resampler};
 use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::probe::Hint;
-use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
+use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
+use symphonia::core::units::Timestamp;
 
 // Cuadros que convierte el resampler en cada vuelta. Un cuadro = una muestra izquierda + una derecha.
 const BLOQUE: usize = 1024;
@@ -25,6 +26,8 @@ pub struct Lector {
     formato: Box<dyn FormatReader>,
     decodificador: Box<dyn AudioDecoder>,
     id_pista: u32,
+    rate: u32,
+    cuadros_totales: u64,
 }
 
 // Abre el archivo y prepara el decodificador. Aquí salen los errores de archivo inválido.
@@ -45,11 +48,15 @@ pub fn abrir(ruta: &Path) -> Result<Lector, String> {
         .default_track(TrackType::Audio)
         .ok_or("El archivo no tiene audio")?;
     let id_pista = pista.id;
+    let cuadros_totales = pista.num_frames.unwrap_or(0);
     let parametros = pista
         .codec_params
         .as_ref()
         .and_then(|p| p.audio())
         .ok_or("El archivo no tiene audio")?;
+    let rate = parametros
+        .sample_rate
+        .ok_or("El archivo no indica su frecuencia")?;
 
     let decodificador = symphonia::default::get_codecs()
         .make_audio_decoder(parametros, &AudioDecoderOptions::default())
@@ -59,17 +66,62 @@ pub fn abrir(ruta: &Path) -> Result<Lector, String> {
         formato,
         decodificador,
         id_pista,
+        rate,
+        cuadros_totales,
     })
 }
 
 impl Lector {
+    pub fn duracion(&self) -> f64 {
+        self.cuadros_totales as f64 / self.rate as f64
+    }
+
+    // Se ubica en `inicio` segundos. Devuelve los cuadros que hay que descartar después,
+    // porque el archivo solo permite caer un poco antes del punto pedido.
+    fn ubicar(&mut self, inicio: f64) -> Result<usize, Error> {
+        if inicio <= 0.0 {
+            return Ok(0);
+        }
+
+        let destino = (inicio * self.rate as f64).round() as i64;
+        let ubicado = self.formato.seek(
+            SeekMode::Accurate,
+            SeekTo::Timestamp {
+                ts: Timestamp::from(destino),
+                track_id: self.id_pista,
+            },
+        )?;
+        self.decodificador.reset();
+        Ok((ubicado.required_ts.get() - ubicado.actual_ts.get()).max(0) as usize)
+    }
+
     // Corre en su propio hilo hasta terminar el archivo o hasta que `parar` sea verdadero.
     // Deja en la cola audio estéreo intercalado (izq, der, izq, der...) a `rate_salida`.
-    pub fn leer(mut self, rate_salida: u32, mut cola: Producer<f32>, parar: Arc<AtomicBool>) {
+    pub fn leer(
+        mut self,
+        inicio: f64,
+        rate_salida: u32,
+        mut cola: Producer<f32>,
+        parar: Arc<AtomicBool>,
+    ) {
         let mut decodificado: Vec<f32> = Vec::new();
         let mut pendiente: Vec<f32> = Vec::new();
-        let mut conversor: Option<Conversor> = None;
-        let mut primer_bloque = true;
+
+        let mut conversor = None;
+        if self.rate != rate_salida {
+            match Conversor::new(self.rate, rate_salida) {
+                Ok(nuevo) => conversor = Some(nuevo),
+                Err(error) => {
+                    eprintln!("{error}");
+                    return;
+                }
+            }
+        }
+
+        // Si el punto pedido queda después del final, la pista simplemente no suena.
+        let Ok(mut descartar) = self.ubicar(inicio) else {
+            return;
+        };
 
         while let Ok(Some(paquete)) = self.formato.next_packet() {
             if paquete.track_id != self.id_pista {
@@ -83,25 +135,15 @@ impl Lector {
             };
 
             let canales = audio.spec().channels().count();
-            let rate_archivo = audio.spec().rate();
             decodificado.resize(audio.samples_interleaved(), 0.0);
             audio.copy_to_slice_interleaved(&mut decodificado);
 
-            if primer_bloque {
-                primer_bloque = false;
-                if rate_archivo != rate_salida {
-                    match Conversor::new(rate_archivo, rate_salida) {
-                        Ok(nuevo) => conversor = Some(nuevo),
-                        Err(error) => {
-                            eprintln!("{error}");
-                            return;
-                        }
-                    }
-                }
-            }
-
             // Una pista mono se copia a los dos lados; de más de 2 canales se usan los 2 primeros.
             for cuadro in decodificado.chunks_exact(canales) {
+                if descartar > 0 {
+                    descartar -= 1;
+                    continue;
+                }
                 pendiente.push(cuadro[0]);
                 pendiente.push(if canales > 1 { cuadro[1] } else { cuadro[0] });
             }
@@ -125,6 +167,7 @@ impl Lector {
 struct Conversor {
     fft: Fft<f32>,
     salida: Vec<f32>,
+    recortar: usize, // silencio que el resampler agrega al inicio; se quita para no correr el tiempo
 }
 
 impl Conversor {
@@ -138,7 +181,12 @@ impl Conversor {
         )
         .map_err(|e| format!("No se pudo crear el conversor: {e}"))?;
         let salida = vec![0.0; fft.output_frames_max() * 2];
-        Ok(Self { fft, salida })
+        let recortar = fft.output_delay();
+        Ok(Self {
+            fft,
+            salida,
+            recortar,
+        })
     }
 }
 
@@ -171,7 +219,9 @@ fn enviar(
             .process_into_buffer(&entrada, &mut salida, None)
             .expect("los bloques cumplen lo que pide el conversor");
 
-        if !empujar(&conversor.salida[..escritos * 2], cola, parar) {
+        let saltar = conversor.recortar.min(escritos);
+        conversor.recortar -= saltar;
+        if !empujar(&conversor.salida[saltar * 2..escritos * 2], cola, parar) {
             return false;
         }
         pendiente.drain(..cuadros * 2);
@@ -196,22 +246,23 @@ mod pruebas {
     use super::*;
     use rtrb::RingBuffer;
 
-    // Lee la pista sintética y comprueba duración y distancia entre clicks.
-    // Si la conversión de frecuencia fallara, el tiempo entre clicks no daría 0,5 s.
-    fn comprobar(rate: u32) {
+    // Lee la pista sintética desde `inicio` y comprueba duración y posición de los clicks.
+    // Si la conversión o el salto fallaran, los clicks no caerían donde deben.
+    fn comprobar(rate: u32, inicio: f64, primer_click: f64, total_clicks: usize) {
         let ruta = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../samples/sinteticas/pista1.flac"
         );
         let lector = abrir(Path::new(ruta)).expect("falta correr scripts/generar-pistas.ps1");
+        assert_eq!(lector.duracion(), 300.0);
 
         let (productor, mut consumidor) = RingBuffer::<f32>::new(rate as usize * 2);
         let parar = Arc::new(AtomicBool::new(false));
-        let hilo = thread::spawn(move || lector.leer(rate, productor, parar));
+        let hilo = thread::spawn(move || lector.leer(inicio, rate, productor, parar));
 
         let mut cuadros = 0usize;
         let mut clicks = Vec::new();
-        let mut silencio = usize::MAX / 2; // el primer click cae en el instante 0
+        let mut silencio = usize::MAX / 2; // el primer click puede caer en el instante 0
         loop {
             if consumidor.slots() >= 2 {
                 let izquierda = consumidor.pop().unwrap();
@@ -231,9 +282,13 @@ mod pruebas {
         }
         hilo.join().unwrap();
 
-        let esperados = 300 * rate as usize;
+        let esperados = ((300.0 - inicio) * rate as f64) as usize;
         assert!(cuadros >= esperados && cuadros < esperados + 8192, "{cuadros} cuadros");
-        assert_eq!(clicks.len(), 600);
+        assert_eq!(clicks.len(), total_clicks);
+
+        let esperado = (primer_click * rate as f64) as usize;
+        assert!(clicks[0].abs_diff(esperado) <= 8, "primer click en {}", clicks[0]);
+
         let medio_segundo = rate as usize / 2;
         for par in clicks.windows(2) {
             let distancia = par[1] - par[0];
@@ -243,11 +298,22 @@ mod pruebas {
 
     #[test]
     fn lee_sin_convertir() {
-        comprobar(44100);
+        comprobar(44100, 0.0, 0.0, 600);
     }
 
     #[test]
     fn convierte_a_48_khz() {
-        comprobar(48000);
+        comprobar(48000, 0.0, 0.0, 600);
+    }
+
+    // Saltar a 1,2 s: el click de 1,5 s debe sonar 0,3 s después.
+    #[test]
+    fn salta_al_punto_exacto() {
+        comprobar(44100, 1.2, 0.3, 597);
+    }
+
+    #[test]
+    fn salta_al_punto_exacto_convirtiendo() {
+        comprobar(48000, 1.2, 0.3, 597);
     }
 }

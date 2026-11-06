@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
@@ -21,6 +22,9 @@ const SEGUNDOS_EN_COLA: usize = 5;
 
 // Tiempo que tarda un cambio de volumen en completarse. Evita los chasquidos.
 const SEGUNDOS_RAMPA: f32 = 0.01;
+
+// Audio que debe tener cada cola antes de empezar a sonar, para que no arranque con un corte.
+const SEGUNDOS_ANTES_DE_SONAR: f32 = 0.25;
 
 // Controles de una pista. Son atómicos: se leen y escriben sin bloquear,
 // porque la salida de audio no puede quedarse esperando a la interfaz.
@@ -48,7 +52,9 @@ impl ControlPista {
 struct Compartido {
     reproduciendo: AtomicBool,
     terminado: AtomicBool,
+    callando: AtomicBool, // baja todo a cero antes de un salto, para que no suene un golpe
     cortes: AtomicU64,
+    cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
     pistas: Vec<ControlPista>,
 }
 
@@ -57,7 +63,9 @@ impl Compartido {
         Self {
             reproduciendo: AtomicBool::new(false),
             terminado: AtomicBool::new(false),
+            callando: AtomicBool::new(false),
             cortes: AtomicU64::new(0),
+            cuadros_sonados: AtomicU64::new(0),
             pistas: (0..total_pistas).map(|_| ControlPista::new()).collect(),
         }
     }
@@ -65,6 +73,10 @@ impl Compartido {
 
 // Lo que tiene abierto el motor mientras hay pistas cargadas.
 struct Sesion {
+    rutas: Vec<PathBuf>,
+    rate: u32,
+    inicio: f64, // segundo de la canción desde el que se empezó a leer
+    duracion: f64,
     stream: Stream,
     compartido: Arc<Compartido>,
     parar: Arc<AtomicBool>,
@@ -72,39 +84,13 @@ struct Sesion {
 }
 
 impl Sesion {
-    fn cerrar(self) {
-        self.parar.store(true, Ordering::Relaxed);
-        drop(self.stream);
-        for lector in self.lectores {
-            let _ = lector.join();
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct Estado {
-    pub reproduciendo: bool,
-    pub terminado: bool,
-    pub cortes: u64,
-}
-
-#[derive(Default)]
-pub struct Motor {
-    sesion: Mutex<Option<Sesion>>,
-}
-
-impl Motor {
-    // Cierra lo anterior, abre las pistas nuevas y deja la salida lista, en pausa.
-    pub fn cargar(&self, rutas: &[PathBuf]) -> Result<(), String> {
+    // Abre las pistas en `inicio` y deja la salida corriendo. Los controles vienen en `compartido`.
+    fn abrir(rutas: &[PathBuf], compartido: Arc<Compartido>, inicio: f64) -> Result<Self, String> {
         let lectores = rutas
             .iter()
             .map(|ruta| track::abrir(ruta))
             .collect::<Result<Vec<_>, _>>()?;
-
-        let mut sesion = self.sesion.lock().unwrap();
-        if let Some(anterior) = sesion.take() {
-            anterior.cerrar();
-        }
+        let duracion = lectores.iter().map(|l| l.duracion()).fold(0.0, f64::max);
 
         let dispositivo = cpal::default_host()
             .default_output_device()
@@ -116,9 +102,7 @@ impl Motor {
         let config: StreamConfig = soportada.into();
         let rate = config.sample_rate;
 
-        let compartido = Arc::new(Compartido::new(lectores.len()));
         let parar = Arc::new(AtomicBool::new(false));
-
         let mut colas = Vec::new();
         let mut hilos = Vec::new();
         for lector in lectores {
@@ -127,9 +111,10 @@ impl Motor {
             colas.push(consumidor);
             let parar_lector = parar.clone();
             hilos.push(thread::spawn(move || {
-                lector.leer(rate, productor, parar_lector)
+                lector.leer(inicio, rate, productor, parar_lector)
             }));
         }
+        esperar_audio(&colas, rate);
 
         let mezclador = Mezclador::new(colas, compartido.clone(), rate);
         let stream = match formato {
@@ -142,12 +127,82 @@ impl Motor {
             .play()
             .map_err(|e| format!("No se pudo iniciar la salida de audio: {e}"))?;
 
-        *sesion = Some(Sesion {
+        Ok(Self {
+            rutas: rutas.to_vec(),
+            rate,
+            inicio,
+            duracion,
             stream,
             compartido,
             parar,
             lectores: hilos,
-        });
+        })
+    }
+
+    fn posicion(&self) -> f64 {
+        let cuadros = self.compartido.cuadros_sonados.load(Ordering::Relaxed);
+        (self.inicio + cuadros as f64 / self.rate as f64).min(self.duracion)
+    }
+
+    fn cerrar(self) {
+        self.parar.store(true, Ordering::Relaxed);
+        drop(self.stream);
+        for lector in self.lectores {
+            let _ = lector.join();
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+pub struct Estado {
+    pub reproduciendo: bool,
+    pub terminado: bool,
+    pub cortes: u64,
+    pub posicion: f64,
+    pub duracion: f64,
+}
+
+#[derive(Default)]
+pub struct Motor {
+    sesion: Mutex<Option<Sesion>>,
+}
+
+impl Motor {
+    // Cierra lo anterior, abre las pistas nuevas y deja la salida lista, en pausa.
+    pub fn cargar(&self, rutas: &[PathBuf]) -> Result<(), String> {
+        let mut sesion = self.sesion.lock().unwrap();
+        if let Some(anterior) = sesion.take() {
+            anterior.cerrar();
+        }
+
+        let compartido = Arc::new(Compartido::new(rutas.len()));
+        *sesion = Some(Sesion::abrir(rutas, compartido, 0.0)?);
+        Ok(())
+    }
+
+    // Salta a un punto: cierra la lectura actual y vuelve a abrir todas las pistas ahí,
+    // así ninguna puede quedar en otro lugar. Si estaba sonando, sigue sonando.
+    pub fn buscar(&self, segundos: f64) -> Result<(), String> {
+        let mut sesion = self.sesion.lock().unwrap();
+        let anterior = sesion.take().ok_or("Primero carga las pistas")?;
+        let compartido = anterior.compartido.clone();
+        let rutas = anterior.rutas.clone();
+        let destino = segundos.clamp(0.0, anterior.duracion);
+
+        let sonaba = compartido.reproduciendo.load(Ordering::Relaxed);
+        if sonaba {
+            compartido.callando.store(true, Ordering::Relaxed);
+            thread::sleep(Duration::from_millis(30));
+        }
+        compartido.reproduciendo.store(false, Ordering::Relaxed);
+        anterior.cerrar();
+
+        compartido.callando.store(false, Ordering::Relaxed);
+        compartido.terminado.store(false, Ordering::Relaxed);
+        compartido.cuadros_sonados.store(0, Ordering::Relaxed);
+
+        *sesion = Some(Sesion::abrir(&rutas, compartido.clone(), destino)?);
+        compartido.reproduciendo.store(sonaba, Ordering::Relaxed);
         Ok(())
     }
 
@@ -199,11 +254,15 @@ impl Motor {
                 reproduciendo: sesion.compartido.reproduciendo.load(Ordering::Relaxed),
                 terminado: sesion.compartido.terminado.load(Ordering::Relaxed),
                 cortes: sesion.compartido.cortes.load(Ordering::Relaxed),
+                posicion: sesion.posicion(),
+                duracion: sesion.duracion,
             },
             None => Estado {
                 reproduciendo: false,
                 terminado: false,
                 cortes: 0,
+                posicion: 0.0,
+                duracion: 0.0,
             },
         }
     }
@@ -233,10 +292,12 @@ impl Mezclador {
     // Lee los controles una vez por bloque, no en cada muestra.
     fn leer_controles(&mut self) {
         let pistas = &self.compartido.pistas;
+        let callando = self.compartido.callando.load(Ordering::Relaxed);
         let hay_solo = pistas.iter().any(|p| p.solo.load(Ordering::Relaxed));
 
         for (objetivo, pista) in self.objetivos.iter_mut().zip(pistas) {
-            let callada = pista.mute.load(Ordering::Relaxed)
+            let callada = callando
+                || pista.mute.load(Ordering::Relaxed)
                 || (hay_solo && !pista.solo.load(Ordering::Relaxed));
             *objetivo = if callada { 0.0 } else { pista.volumen() };
         }
@@ -283,13 +344,20 @@ impl Mezclador {
     {
         self.leer_controles();
         let mut hubo_corte = false;
+        let mut sonados = 0;
 
         for cuadro in datos.chunks_mut(canales) {
             let (izquierda, derecha) = if self.compartido.reproduciendo.load(Ordering::Relaxed) {
-                self.siguiente_cuadro().unwrap_or_else(|| {
-                    hubo_corte = true;
-                    (0.0, 0.0)
-                })
+                match self.siguiente_cuadro() {
+                    Some(mezcla) => {
+                        sonados += 1;
+                        mezcla
+                    }
+                    None => {
+                        hubo_corte = true;
+                        (0.0, 0.0)
+                    }
+                }
             } else {
                 (0.0, 0.0)
             };
@@ -304,9 +372,26 @@ impl Mezclador {
             }
         }
 
+        self.compartido
+            .cuadros_sonados
+            .fetch_add(sonados, Ordering::Relaxed);
         if hubo_corte {
             self.compartido.cortes.fetch_add(1, Ordering::Relaxed);
         }
+    }
+}
+
+// Espera a que todas las pistas tengan audio listo. Si un archivo tarda demasiado, sigue igual:
+// el mezclador sostiene a las demás pistas hasta que llegue.
+fn esperar_audio(colas: &[Consumer<f32>], rate: u32) {
+    let minimo = (rate as f32 * 2.0 * SEGUNDOS_ANTES_DE_SONAR) as usize;
+    let limite = Instant::now() + Duration::from_secs(2);
+
+    while Instant::now() < limite {
+        if colas.iter().all(|c| c.slots() >= minimo || c.is_abandoned()) {
+            return;
+        }
+        thread::sleep(Duration::from_millis(2));
     }
 }
 
@@ -335,7 +420,6 @@ where
 #[cfg(test)]
 mod pruebas {
     use super::*;
-    use std::time::Duration;
 
     fn rutas_sinteticas() -> Vec<PathBuf> {
         (1..=8)
@@ -350,8 +434,7 @@ mod pruebas {
     // Si todas van alineadas el resultado es silencio total. Con un solo cuadro de desfase
     // en cualquier pista aparecería sonido. Las colas son diminutas a propósito,
     // para que las pistas se atrasen todo el tiempo y el reloj único tenga que sostenerlas.
-    #[test]
-    fn las_pistas_no_se_desfasan() {
+    fn comprobar_alineacion(inicio: f64, cuadros_a_medir: u64) {
         let rate = 48000;
         let compartido = Arc::new(Compartido::new(8));
         let parar = Arc::new(AtomicBool::new(false));
@@ -364,7 +447,7 @@ mod pruebas {
             colas.push(consumidor);
             let parar_lector = parar.clone();
             hilos.push(thread::spawn(move || {
-                lector.leer(rate, productor, parar_lector)
+                lector.leer(inicio, rate, productor, parar_lector)
             }));
 
             let signo: f32 = if indice % 2 == 0 { 1.0 } else { -1.0 };
@@ -378,18 +461,34 @@ mod pruebas {
 
         let mut bloque = vec![0.0f32; 960];
         let mut pico = 0.0f32;
-        while !compartido.terminado.load(Ordering::Relaxed) {
+        while !compartido.terminado.load(Ordering::Relaxed)
+            && compartido.cuadros_sonados.load(Ordering::Relaxed) < cuadros_a_medir
+        {
             mezclador.escribir(&mut bloque, 2);
             pico = bloque.iter().fold(pico, |p, m| p.max(m.abs()));
         }
+        parar.store(true, Ordering::Relaxed);
         for hilo in hilos {
             hilo.join().unwrap();
         }
 
         let cortes = compartido.cortes.load(Ordering::Relaxed);
-        println!("pico {pico}, bloques con pistas atrasadas {cortes}");
+        println!("inicio {inicio}: pico {pico}, bloques con pistas atrasadas {cortes}");
         assert_eq!(pico, 0.0);
         assert!(cortes > 0, "la prueba no llegó a forzar atrasos");
+    }
+
+    #[test]
+    fn las_pistas_no_se_desfasan() {
+        comprobar_alineacion(0.0, u64::MAX);
+    }
+
+    // Después de saltar a un punto cualquiera, las 8 pistas siguen exactamente juntas.
+    #[test]
+    fn las_pistas_siguen_juntas_al_saltar() {
+        for inicio in [0.123, 57.321, 123.4567, 299.0] {
+            comprobar_alineacion(inicio, 48000 * 10);
+        }
     }
 
     // Mute, solo y volumen: comprueba cuánto suena la mezcla en cada caso.
@@ -437,17 +536,24 @@ mod pruebas {
     fn reproduce_sin_cortes() {
         let motor = Motor::default();
         motor.cargar(&rutas_sinteticas()).unwrap();
-        thread::sleep(Duration::from_millis(500));
 
         motor.play().unwrap();
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(5));
         motor.pausa().unwrap();
         thread::sleep(Duration::from_millis(500));
         motor.play().unwrap();
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(2));
+
+        let antes = Instant::now();
+        motor.buscar(100.0).unwrap();
+        println!("el salto tardó {:?}", antes.elapsed());
+        thread::sleep(Duration::from_secs(3));
 
         let estado = motor.estado();
+        println!("posición {}", estado.posicion);
         assert_eq!(estado.cortes, 0);
         assert!(estado.reproduciendo);
+        assert_eq!(estado.duracion, 300.0);
+        assert!((102.8..103.2).contains(&estado.posicion));
     }
 }

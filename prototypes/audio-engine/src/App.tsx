@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
 type Estado = {
   reproduciendo: boolean;
   terminado: boolean;
   cortes: number;
+  posicion: number;
+  duracion: number;
 };
 
 type Pista = {
@@ -15,17 +18,25 @@ type Pista = {
   solo: boolean;
 };
 
+function formatoTiempo(segundos: number) {
+  const minutos = Math.floor(segundos / 60);
+  const resto = Math.floor(segundos % 60);
+  return `${minutos}:${String(resto).padStart(2, "0")}`;
+}
+
 function App() {
   const [carpeta, setCarpeta] = useState("");
   const [pistas, setPistas] = useState<Pista[]>([]);
   const [error, setError] = useState("");
   const [estado, setEstado] = useState<Estado | null>(null);
+  // Mientras se arrastra la barra guarda a dónde va; al soltar se hace el salto.
+  const [arrastre, setArrastre] = useState<number | null>(null);
 
   useEffect(() => {
-    const intervalo = setInterval(async () => {
-      setEstado(await invoke<Estado>("estado"));
-    }, 500);
-    return () => clearInterval(intervalo);
+    const dejarDeEscuchar = listen<Estado>("estado", (evento) => setEstado(evento.payload));
+    return () => {
+      dejarDeEscuchar.then((dejar) => dejar());
+    };
   }, []);
 
   async function ejecutar(orden: string, args?: Record<string, unknown>) {
@@ -48,6 +59,12 @@ function App() {
       setPistas([]);
       setError(String(e));
     }
+  }
+
+  async function soltarBarra() {
+    if (arrastre === null) return;
+    await ejecutar("buscar", { segundos: arrastre });
+    setArrastre(null);
   }
 
   function cambiar(indice: number, cambio: Partial<Pista>) {
@@ -77,6 +94,9 @@ function App() {
     return estado?.reproduciendo ? "Reproduciendo" : "En pausa";
   }
 
+  const posicion = arrastre ?? estado?.posicion ?? 0;
+  const duracion = estado?.duracion ?? 0;
+
   return (
     <main>
       <h1>Motor de audio</h1>
@@ -99,6 +119,23 @@ function App() {
         <button disabled={pistas.length === 0} onClick={() => ejecutar("pausa")}>
           Pausa
         </button>
+      </div>
+
+      <div className="fila tiempo">
+        <span>{formatoTiempo(posicion)}</span>
+        <input
+          type="range"
+          aria-label="Posición en la canción"
+          disabled={pistas.length === 0}
+          min={0}
+          max={duracion}
+          step={0.1}
+          value={posicion}
+          onChange={(e) => setArrastre(Number(e.target.value))}
+          onPointerUp={soltarBarra}
+          onKeyUp={soltarBarra}
+        />
+        <span>{formatoTiempo(duracion)}</span>
       </div>
 
       <p>

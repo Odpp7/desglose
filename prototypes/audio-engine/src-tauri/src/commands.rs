@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use tauri::State;
 
-use crate::audio::engine::{Estado, Motor};
+use crate::audio::engine::Motor;
 
 fn es_audio(ruta: &Path) -> bool {
     ruta.extension()
@@ -46,6 +46,11 @@ pub fn pausa(motor: State<'_, Motor>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn buscar(segundos: f64, motor: State<'_, Motor>) -> Result<(), String> {
+    motor.buscar(segundos)
+}
+
+#[tauri::command]
 pub fn volumen(indice: usize, valor: f32, motor: State<'_, Motor>) -> Result<(), String> {
     motor.volumen(indice, valor)
 }
@@ -58,9 +63,4 @@ pub fn mute(indice: usize, valor: bool, motor: State<'_, Motor>) -> Result<(), S
 #[tauri::command]
 pub fn solo(indice: usize, valor: bool, motor: State<'_, Motor>) -> Result<(), String> {
     motor.solo(indice, valor)
-}
-
-#[tauri::command]
-pub fn estado(motor: State<'_, Motor>) -> Estado {
-    motor.estado()
 }
