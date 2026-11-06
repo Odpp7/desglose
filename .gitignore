@@ -30,6 +30,7 @@ build/
 __pycache__/
 *.pyc
 .venv/
+.uv-cache/
 venv/
 .env
 

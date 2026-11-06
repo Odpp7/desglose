@@ -41,6 +41,7 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-05: en el prototipo cada pista tiene su propio hilo de lectura (la especificación decía uno por canción), porque es lo más simple. Se revisa si la medición con 2 núcleos da problemas.
 - 2026-11-05: cambiar el tono (RF-34) sube a prioridad alta y a la Fase 1, porque es importante para el equipo; se prueba junto con la velocidad en 1g, ya que usan la misma librería. El click no pasa por velocidad ni tono: se genera aparte. Sin decidir: si la exportación a REAPER puede salir en otro tono (la especificación dice que siempre sale original).
 - 2026-11-05: las pruebas de IA corren en Modal y no en la PC de desarrollo, para no instalar librerías y modelos pesados. Reemplaza lo anotado antes sobre correrlas en local. Falta confirmar si el 1 USD se renueva cada mes.
+- 2026-11-05: Modal no permite GPU sin método de pago ("Please add a payment method to use T4 GPU functions"). Sin tarjeta solo hay CPU. Tema abierto: agregar tarjeta con límite de gasto, usar CPU con un modelo más liviano, o procesar en la PC de desarrollo.
 - 2026-11-05: el instalador (1h) y la actualización automática (1i) se dejan para cuando la app real esté terminada, antes de repartirla. Salen de la Puerta 1. La actualización sigue siendo obligatoria en la primera versión que se reparta.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.
