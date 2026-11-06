@@ -13,11 +13,11 @@ Después de instalar cada cosa, **cierra y vuelve a abrir PowerShell**.
 - [x] Python 3.11.9
 - [x] FFmpeg 9
 - [x] LLVM 23 (`signalsmith-stretch` lo necesita para compilar; solo en esta PC)
+- [x] REAPER 7 (versión de evaluación, para abrir los proyectos exportados)
 
 ## Falta (revisado el 2026-11-05)
 
 - [ ] uv: no está instalado (sección 1). Hace falta en el paso 3 de la Fase 0.
-- [ ] REAPER 7: no se encontró en esta PC. Hace falta en el paso 2; confirmar si está en otra ruta o en versión portable.
 
 ## 1. uv (administra Python y las dependencias del backend)
 

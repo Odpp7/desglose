@@ -43,15 +43,15 @@ Para probar sin la IA y sin canciones, se generan 8 pistas sintéticas con FFmpe
 
 ## Paso 2 — Exportar a REAPER (`prototypes/rpp-export`)
 
-- [ ] Función en Rust (o TypeScript para prototipar) que reciba la lista de WAV + mapa de tempo + secciones y escriba un `.RPP` (texto plano).
-- [ ] Abrirlo en REAPER: pistas en orden, tempo correcto, secciones como regiones con su nombre.
+- [x] Función en Rust (o TypeScript para prototipar) que reciba la lista de WAV + mapa de tempo + secciones y escriba un `.RPP` (texto plano).
+- [x] Abrirlo en REAPER: pistas en orden, tempo correcto, secciones como regiones con su nombre. También abre con cambio de tempo y de compás.
 - [ ] Comparar con la secuencia de referencia del encargado y ajustar nombres y orden.
 
 **Pasa si:** el encargado abre el `.RPP` y dice "esto es como lo que uso".
 
 ## Paso 3 — Pipeline de IA (`prototypes/ai-pipeline` → luego `backend/`)
 
-Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Las pruebas y comparaciones de modelos corren en local, con la RTX 3050 de la PC de desarrollo, para no gastar crédito. Modal solo se usa al final, con una o dos canciones, para medir el costo real: sin tarjeta hay 1 USD al mes.
+Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Todo corre en Modal, para no instalar la IA en la PC de desarrollo: aquí solo van `uv` y el cliente de Modal. Sin tarjeta hay 1 USD, así que se avanza de a una canción y se revisa el gasto en cada prueba.
 
 - [ ] **3a.** Proyecto con `uv init`, FFmpeg para normalizar el audio.
 - [ ] **3b.** Separación con `audio-separator`: BS-RoFormer-SW vs Demucs `htdemucs_6s` → escuchar guitarra y piano.
