@@ -2,6 +2,7 @@
 // Nunca carga el archivo completo: si la cola está llena, espera a que se vacíe.
 
 use std::fs::File;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -27,7 +28,7 @@ pub struct Lector {
 }
 
 // Abre el archivo y prepara el decodificador. Aquí salen los errores de archivo inválido.
-pub fn abrir(ruta: &str) -> Result<Lector, String> {
+pub fn abrir(ruta: &Path) -> Result<Lector, String> {
     let archivo = File::open(ruta).map_err(|e| format!("No se pudo abrir el archivo: {e}"))?;
     let fuente = MediaSourceStream::new(Box::new(archivo), Default::default());
 
@@ -202,7 +203,7 @@ mod pruebas {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../samples/sinteticas/pista1.flac"
         );
-        let lector = abrir(ruta).expect("falta correr scripts/generar-pistas.ps1");
+        let lector = abrir(Path::new(ruta)).expect("falta correr scripts/generar-pistas.ps1");
 
         let (productor, mut consumidor) = RingBuffer::<f32>::new(rate as usize * 2);
         let parar = Arc::new(AtomicBool::new(false));
@@ -215,7 +216,7 @@ mod pruebas {
             if consumidor.slots() >= 2 {
                 let izquierda = consumidor.pop().unwrap();
                 consumidor.pop().unwrap();
-                if izquierda.abs() > 0.2 {
+                if izquierda.abs() > 0.05 {
                     if silencio > 1000 {
                         clicks.push(cuadros);
                     }

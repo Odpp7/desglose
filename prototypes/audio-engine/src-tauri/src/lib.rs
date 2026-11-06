@@ -6,9 +6,12 @@ pub fn run() {
     tauri::Builder::default()
         .manage(audio::engine::Motor::default())
         .invoke_handler(tauri::generate_handler![
-            commands::cargar,
+            commands::cargar_carpeta,
             commands::play,
             commands::pausa,
+            commands::volumen,
+            commands::mute,
+            commands::solo,
             commands::estado
         ])
         .run(tauri::generate_context!())

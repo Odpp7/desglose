@@ -26,7 +26,7 @@ Se hace en sub-pasos, probando cada uno antes del siguiente:
 
 - [x] **1a.** Crear el proyecto con `npm create tauri-app@latest` (React + TypeScript). Que abra la ventana.
 - [x] **1b.** En Rust: reproducir **una** pista FLAC/WAV leyéndola desde el disco por bloques (`symphonia` + `cpal`). Botones play y pausa.
-- [ ] **1c.** Reproducir **8 pistas** juntas con un solo reloj. Mute, solo y volumen por pista.
+- [x] **1c.** Reproducir **8 pistas** juntas con un solo reloj. Mute, solo y volumen por pista.
 - [ ] **1c+.** Primera medición con recursos limitados: la app solo con 2 núcleos de la CPU (`start /affinity 3`), 8 pistas durante 5 minutos, midiendo RAM, CPU y cortes.
 - [ ] **1d.** Enviar la posición a la interfaz por eventos y mostrar el tiempo; buscar a un punto.
 - [ ] **1e.** Generar un click desde BPM y compás (acento en el 1).

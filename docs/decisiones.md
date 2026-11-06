@@ -38,5 +38,6 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-05: actualizaciones automáticas con el actualizador de Tauri; deben venir desde la primera versión que se reparta y se prueban en el sub-paso 1i. Los archivos de actualización deben estar en un lugar público (GitHub Releases).
 - 2026-11-05: Modal da hoy solo 1 USD al mes sin método de pago; los otros 29 USD exigen agregar tarjeta. Sin decidir: seguir con 1 USD, agregar tarjeta con límite de gasto, o procesar en la PC de desarrollo (RTX 3050). Se decide con el costo real por canción. Mientras tanto, las pruebas de IA de la Fase 0 corren en local y Modal se usa solo para medir.
 - 2026-11-05: se agrega `rtrb` al motor de audio: es la cola entre el hilo que lee del disco y la salida de audio, que no puede quedarse esperando. `rubato` entra desde 1b porque la tarjeta suele ir a 48 kHz y las pistas a 44.1 kHz.
+- 2026-11-05: en el prototipo cada pista tiene su propio hilo de lectura (la especificación decía uno por canción), porque es lo más simple. Se revisa si la medición con 2 núcleos da problemas.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

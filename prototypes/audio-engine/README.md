@@ -18,7 +18,7 @@ Generar las pistas de prueba (una sola vez, necesita FFmpeg):
 powershell -ExecutionPolicy Bypass -File scripts/generar-pistas.ps1
 ```
 
-Abrir la app y pegar la ruta de una pista de `samples/sinteticas/`:
+Abrir la app y pegar la ruta de la carpeta `samples/sinteticas`:
 
 ```powershell
 npm install
