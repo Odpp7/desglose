@@ -6,7 +6,7 @@ Lee este archivo completo antes de hacer cualquier cosa en el proyecto.
 
 Una especie de **Moises para equipos de alabanza**, gratis. App de **escritorio para Windows** (Tauri) que recibe una canción (MP3/WAV/FLAC) y **crea sola la secuencia completa**:
 
-- instrumentos separados con IA (voz, batería, bajo, guitarra, piano, otros),
+- instrumentos separados con IA (voz líder, coros, batería, bajo, piano, guitarras acústica, lead y rítmica, synth, otros),
 - tempo, compases y primer tiempo de cada compás,
 - acordes (cifrado americano: C, D, Em, G/B) y tonalidad,
 - secciones con nombre en español (Intro, Verso 1, Pre-coro, Coro 1, Puente, Solo, Final...),
@@ -22,19 +22,19 @@ Especificación completa: `docs/especificacion.md`. Decisiones: `docs/decisiones
 
 ## Dónde corre (lo más importante)
 
-La app la **instalan unas 10 personas** como un programa normal, no corre en la PC de desarrollo. La más limitada es una **PC modesta** (la de la iglesia), a la que no hay acceso hasta que la app esté lista. Diseñar siempre para el peor caso:
+La app se instala como un programa normal en **una sola PC que importa**: una **PC modesta** (la de la iglesia), no la de desarrollo. No hay acceso a ella hasta que la app esté lista. Diseñar siempre para esa PC:
 
-- **Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video.**
+- **Windows 10 de 64 bits, 8 GB de RAM, procesador de 2 núcleos (AMD A9-9425), SSD y video integrado.** Lo más débil es el procesador: la interfaz debe ser liviana.
 - Instalador `.exe` (NSIS) de menos de 30 MB. La otra PC **no instala nada más**: ni Python, ni FFmpeg, ni Node.
-- Con una canción de 8 pistas abierta, la app usa **menos de 400 MB de RAM**.
-- La IA corre **siempre en la nube (Modal)**. Nada pesado corre en la PC.
+- Con una canción de 8 pistas abierta, la app usa **menos de 1 GB de RAM**.
+- La IA corre **siempre en la nube**: separar en MVSep; el resto del análisis en Modal. Nada pesado corre en la PC.
 - Solo crear una secuencia necesita internet; lo demás funciona offline.
 
 ## Reglas del proyecto
 
 1. **Costo cero.** Proyecto personal sin financiación. Solo herramientas gratuitas/código abierto y los créditos gratis de Modal. No proponer servicios de pago.
 2. **Sin usuarios ni cuentas** en esta versión. Sin Supabase ni base de datos en la nube.
-3. **El audio va en Rust**, leyendo las pistas desde el disco por bloques. **No** cargar pistas completas en memoria ni usar Web Audio como motor (gasta demasiada RAM para 4 GB).
+3. **El audio va en Rust**, leyendo las pistas desde el disco por bloques. **No** cargar pistas completas en memoria ni usar Web Audio como motor (gasta demasiada RAM).
 4. **Lo que se escucha = lo que se exporta.** El mismo motor en Rust reproduce y renderiza.
 5. **Todo lo que detecta la IA es una sugerencia editable.** Nunca sobrescribir una edición manual del usuario.
 6. **Contrato tipado.** Los modelos Pydantic del backend generan OpenAPI, y de ahí los tipos TypeScript de la app (`openapi-typescript`). No escribir tipos de la API a mano.
@@ -63,7 +63,8 @@ La app la **instalan unas 10 personas** como un programa normal, no corre en la 
 | Datos locales | SQLite con `tauri-plugin-sql`; archivos con `tauri-plugin-fs` |
 | Voz guía | Piper (TTS offline) como sidecar de Tauri |
 | Backend IA | Python 3.11 con **uv**, FastAPI, Pydantic, SSE para el avance; desplegado en **Modal** (GPU T4) |
-| Modelos | `audio-separator` (BS-RoFormer-SW; respaldo Demucs `htdemucs_6s`), Beat This!, SongFormer (respaldo All-In-One), BTC (acordes), faster-whisper, Basic Pitch |
+| Separación | API de MVSep (plan gratis) con una cadena de modelos; respaldo BS-RoFormer-SW en Modal |
+| Modelos | Beat This!, SongFormer (respaldo All-In-One), BTC (acordes), faster-whisper, Basic Pitch |
 
 ## Estructura
 

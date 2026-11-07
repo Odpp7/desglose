@@ -25,4 +25,4 @@ Cero. Todo es gratuito o de código abierto; la IA usa los créditos gratis de M
 
 ## Equipo mínimo
 
-Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video. Internet solo para crear secuencias nuevas.
+Windows 10 de 64 bits, 8 GB de RAM, procesador de 2 núcleos (AMD A9-9425), SSD y video integrado. Internet solo para crear secuencias nuevas.

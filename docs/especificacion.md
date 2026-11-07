@@ -12,7 +12,7 @@ Desglose es una app de Windows que recibe una canción y **crea sola la secuenci
 
 **Referencias:** Desglose toma como modelo a [Moises](https://apps.apple.com/us/app/moises-the-musicians-app/id1515796612) (separación, acordes, metrónomo inteligente, secciones, velocidad y tono) y a [StemDeck](https://github.com/stemdeckapp/stemdeck), una app libre con Tauri 2 + Web Audio + Python que demuestra que esta arquitectura funciona. Lo que suma Desglose y ninguno de los dos tiene: voz guía hablando, secuencia lista para REAPER y uso gratis sin límites.
 
-**Dónde se instala:** en otra PC modesta (la de la iglesia), no en la PC de desarrollo. Todo se diseña para el peor caso: **4 GB de RAM y Windows 10 de 64 bits**. Se instala como cualquier programa y no pide instalar nada más.
+**Dónde se instala:** en otra PC modesta (la de la iglesia), no en la PC de desarrollo. Todo se diseña para ella: **8 GB de RAM, procesador de 2 núcleos (AMD A9-9425), SSD y Windows 10 de 64 bits**. Se instala como cualquier programa y no pide instalar nada más.
 
 **Cómo se usa hoy y cómo cambia**
 
@@ -80,8 +80,8 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | ID | Requerimiento | Prioridad | Fase |
 | --- | --- | --- | --- |
 | RF-06 | Botón "Crear secuencia" que hace todo el proceso automático de una vez. | Alta | 1 |
-| RF-07 | Separar la canción en pistas: voz, batería, bajo, guitarra, piano y otros. | Alta | 1 |
-| RF-08 | Detectar qué instrumentos suenan de verdad y ocultar las pistas vacías. | Alta | 1 |
+| RF-07 | Separar la canción en pistas: voz líder, coros, batería, bajo, piano, guitarra acústica, guitarra lead, guitarra rítmica, synth y otros. | Alta | 1 |
+| RF-08 | Detectar qué instrumentos suenan de verdad y ocultar las pistas vacías. Lo mismo aplica a la guitarra acústica y a la lead: si no están, no aparecen. | Alta | 1 |
 | RF-09 | Detectar BPM, compás, tiempos y primer tiempo de cada compás, incluso si el tempo cambia. | Alta | 1 |
 | RF-10 | Detectar las secciones y nombrarlas: Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final. | Alta | 1 |
 | RF-11 | Numerar las secciones repetidas usando la letra: misma letra = mismo coro; letra nueva = Verso 2. | Alta | 1 |
@@ -147,9 +147,9 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | ID | Categoría | Requerimiento |
 | --- | --- | --- |
 | RNF-01 | Costo | Costo cero: solo herramientas gratuitas y de código abierto, y los créditos gratis de Modal (sección 12). |
-| RNF-02 | Equipo mínimo | Windows 10 u 11 de 64 bits, 4 GB de RAM, procesador de doble núcleo, 2 GB libres en disco. Sin tarjeta de video dedicada. |
+| RNF-02 | Equipo mínimo | Windows 10 u 11 de 64 bits, 8 GB de RAM, procesador de 2 núcleos (referencia: AMD A9-9425), SSD, 2 GB libres en disco. Sin tarjeta de video dedicada. |
 | RNF-03 | Instalación | Un solo instalador `.exe` de menos de 30 MB. No pide instalar Python, FFmpeg ni nada más. Si falta WebView2, el instalador lo descarga solo. |
-| RNF-04 | Memoria | Con una canción de 8 pistas abierta, la app usa menos de 400 MB de RAM. Las pistas se leen desde el disco, no se cargan completas en memoria. |
+| RNF-04 | Memoria | Con una canción de 8 pistas abierta, la app usa menos de 1 GB de RAM. Las pistas se leen desde el disco, no se cargan completas en memoria. |
 | RNF-05 | Rendimiento | Crear una secuencia de una canción de 4 minutos tarda pocos minutos (la IA corre en la nube); la meta exacta sale de la Fase 0. |
 | RNF-06 | Sincronía | Pistas, click y guía sin desfase entre sí (exacto al sample en la exportación, menos de 10 ms en reproducción). |
 | RNF-07 | Latencia | Mute, solo y volumen responden en menos de 100 ms. |
@@ -164,7 +164,7 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 
 ## 5. Arquitectura y stack
 
-Desglose es una app de escritorio liviana hecha con Tauri: la interfaz va en React, el audio en Rust leyendo desde el disco, y la IA pesada en la nube. Así corre bien en una PC de 4 GB sin tarjeta de video.
+Desglose es una app de escritorio liviana hecha con Tauri: la interfaz va en React, el audio en Rust leyendo desde el disco, y la IA pesada en la nube. Así corre bien en una PC de 8 GB con procesador débil y sin tarjeta de video.
 
 ```text
 App de escritorio (Tauri)                   Nube · Modal (GPU)
@@ -201,12 +201,12 @@ La app sube la canción a Modal, ve el avance en vivo, descarga pistas y anális
 
 **Decisiones clave**
 
-- **Diseñado para la PC de la iglesia:** 4 GB de RAM y Windows 10 como mínimo. Nada pesado corre en la PC.
+- **Diseñado para la PC de la iglesia:** 8 GB de RAM, 2 núcleos y Windows 10 como mínimo. Nada pesado corre en la PC.
 - **IA siempre en la nube:** separar en una PC sin GPU tardaría demasiado y pesaría gigas. Por eso no hay motor de IA local.
-- **Audio en Rust desde el inicio:** el audio del navegador carga cada pista completa en RAM (unos 650 MB por canción), que en 4 GB es riesgoso. Rust lee del disco y gasta muy poco. El compilador ya está en la PC de desarrollo y la PC de la iglesia no necesita nada.
+- **Audio en Rust desde el inicio:** el audio del navegador carga cada pista completa en RAM (unos 650 MB por canción), un gasto innecesario. Rust lee del disco y gasta muy poco. El compilador ya está en la PC de desarrollo y la PC de la iglesia no necesita nada.
 - **Sin Supabase ni base de datos en la nube:** no hay usuarios y todo se guarda en la PC.
 - **Lo que se escucha es lo que se exporta:** el mismo motor en Rust reproduce y renderiza.
-- **Descartados:** Flutter (dos lenguajes nuevos), Electron (pesado para 4 GB), Web Audio como motor principal (mucha RAM), IA local (lenta sin GPU), la API de pago de Moises (Music.AI).
+- **Descartados:** Flutter (dos lenguajes nuevos), Electron (pesado para esta PC), Web Audio como motor principal (mucha RAM), IA local (lenta sin GPU), la API de pago de Moises (Music.AI).
 
 ## 6. IA: cómo se crea la secuencia sola
 
@@ -217,7 +217,7 @@ No hay que entrenar nada para empezar: se usan modelos ya entrenados, y un códi
 | # | Etapa | Modelo principal | Respaldo | Salida |
 | --- | --- | --- | --- | --- |
 | 1 | Normalizar audio | FFmpeg | — | WAV 44.1 kHz estéreo |
-| 2 | Separar instrumentos | BS-RoFormer-SW (6 pistas) vía [audio-separator](https://pypi.org/project/audio-separator/0.44.3/) | Demucs `htdemucs_6s` (MIT), misma librería | Voz, batería, bajo, guitarra, piano, otros |
+| 2 | Separar instrumentos | Cadena de modelos en la API de MVSep: BS Roformer SW, Karaoke, Acoustic Guitar, Lead/Rhythm Guitar y Synth | BS-RoFormer-SW en Modal, con una sola guitarra | Voz líder, coros, batería, bajo, piano, guitarra acústica, lead, rítmica, synth y otros |
 | 3 | Tiempos y compases | [Beat This!](https://arxiv.org/html/2407.21658v1) | All-In-One | Tiempos, primer tiempo de cada compás, BPM, compás |
 | 4 | Secciones con nombre | [SongFormer](https://arxiv.org/html/2510.02797) | [All-In-One](https://github.com/mir-aidj/all-in-one) | Secciones: intro, verso, pre-coro, coro, puente, instrumental, solo, outro |
 | 5 | Letra | faster-whisper sobre la pista de voz | — | Letra con tiempo por palabra |
@@ -679,9 +679,9 @@ Cada fase termina en una puerta: no se pasa a la siguiente hasta cumplirla.
 
 **Fase 0: qué se prueba antes de construir pantallas**
 
-- [ ] Motor de audio en Rust dentro de una app Tauri mínima: 8 pistas durante 5 minutos sin desfase ni cortes, con menos de 400 MB de RAM.
+- [ ] Motor de audio en Rust dentro de una app Tauri mínima: 8 pistas durante 5 minutos sin desfase ni cortes, con menos de 1 GB de RAM.
 - [ ] Cambio de tempo con Signalsmith Stretch y exportación a WAV exacta.
-- [ ] Instalador NSIS probado en otra PC con Windows 10 y 4 GB de RAM (o lo más parecido que haya).
+- [ ] Instalador NSIS probado en otra PC con Windows 10 y 8 GB de RAM (o lo más parecido que haya).
 - [ ] Pipeline de IA en Modal con 3 a 5 canciones de su repertorio: revisar a oído pistas, tempo y secciones.
 - [ ] Comparar BS-RoFormer-SW contra Demucs y SongFormer contra All-In-One con esas canciones.
 - [ ] Probar BTC para acordes contra lo que ustedes tocan.
@@ -697,7 +697,7 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 | --- | --- |
 | Tipo de app | Escritorio para Windows, instalable en una PC modesta; Android después |
 | Modelo de referencia | Moises (funciones) y StemDeck (arquitectura) |
-| Equipo mínimo | Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video |
+| Equipo mínimo | Windows 10 de 64 bits, 8 GB de RAM, procesador de 2 núcleos (AMD A9-9425), SSD y video integrado |
 | Función principal | La IA crea la secuencia completa y el equipo la edita |
 | Entrega | Paquete para REAPER; el encargado sigue con su flujo hacia la consola |
 | Interfaz | Tauri 2 + React + TypeScript |

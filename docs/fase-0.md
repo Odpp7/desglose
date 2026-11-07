@@ -2,7 +2,7 @@
 
 Objetivo: comprobar que lo difícil funciona **antes** de hacer la app completa. Si algo falla aquí, se cambia el enfoque sin haber perdido semanas.
 
-Recordatorio: la app final la instalan unas 10 personas como un programa normal, y el peor caso es una **PC modesta (Windows 10, 4 GB de RAM, sin GPU)**. Todo se mide pensando en esa PC. No hay acceso a ella hasta que la app esté lista, así que durante la Fase 0 se simula.
+Recordatorio: la app final se instala como un programa normal en una **PC modesta (Windows 10, 8 GB de RAM, AMD A9-9425 de 2 núcleos, SSD, sin GPU)**. Todo se mide pensando en esa PC. No hay acceso a ella hasta que la app esté lista, así que durante la Fase 0 se simula.
 
 Cada paso es independiente y vive en `prototypes/`. Se hacen en este orden, **uno a la vez**.
 
@@ -32,10 +32,10 @@ Se hace en sub-pasos, probando cada uno antes del siguiente:
 - [x] **1e.** Generar un click desde BPM y compás (acento en el 1).
 - [x] **1f.** Exportar la mezcla a WAV 24 bits sin pasar por la tarjeta de sonido (`hound`).
 - [x] **1g.** Cambio de velocidad sin cambiar el tono, y cambio de tono en semitonos (`signalsmith-stretch`). Medido (2026-11-05, versión optimizada, 2 hilos, 8 pistas de ruido al 75% y +2 semitonos): 0 cortes, 215 MB, motor en 5,4% de un hilo; la ventana gasta más, hasta 32%. Calidad aprobada a oído con una canción real, sobre la mezcla completa; falta oírlo con pistas separadas por la IA.
-- [ ] **1h (se hace al terminar la app real).** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 4 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.
+- [ ] **1h (se hace al terminar la app real).** Generar el instalador NSIS e instalarlo en una máquina virtual limpia con Windows 10 y 8 GB de RAM (Hyper-V o VirtualBox, gratis), sin nada más instalado.
 - [ ] **1i (se hace al terminar la app real).** Actualización automática: instalar una versión 0.1 en la máquina virtual, publicar una 0.2 y comprobar que se actualiza sola, sin pedirle nada al usuario.
 
-**Medir:** 5 minutos con 8 pistas sin desfase ni cortes; RAM de la app menor a 400 MB; uso de CPU razonable; WAV exportado idéntico a lo que se escucha.
+**Medir:** 5 minutos con 8 pistas sin desfase ni cortes; RAM de la app menor a 1 GB; uso de CPU razonable; WAV exportado idéntico a lo que se escucha.
 
 **Pasa si:** todo lo anterior se cumple con 2 núcleos. La instalación en una máquina virtual se comprueba al terminar la app real. La simulación no reemplaza a la PC real: el procesador de desarrollo es más rápido y el audio dentro de una máquina virtual no sirve para medir cortes. La prueba definitiva es la primera instalación real.
 
@@ -51,10 +51,10 @@ Para probar sin la IA y sin canciones, se generan 8 pistas sintéticas con FFmpe
 
 ## Paso 3 — Pipeline de IA (`prototypes/ai-pipeline` → luego `backend/`)
 
-Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Todo corre en Modal, para no instalar la IA en la PC de desarrollo: aquí solo van `uv` y el cliente de Modal. Sin tarjeta hay 1 USD, así que se avanza de a una canción y se revisa el gasto en cada prueba.
+Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba solo. Nada de la IA se instala en la PC de desarrollo: aquí solo van `uv` y los clientes. Separar va en la API de MVSep (`mvsep.py`, clave en `.env`) y lo demás en Modal. Sin tarjeta Modal da 1 USD, así que se revisa el gasto en cada prueba.
 
-- [ ] **3a.** Proyecto con `uv init`, FFmpeg para normalizar el audio.
-- [ ] **3b.** Separación con `audio-separator`: BS-RoFormer-SW vs Demucs `htdemucs_6s` → escuchar guitarra y piano.
+- [x] **3a.** Proyecto con `uv init`, FFmpeg para normalizar el audio.
+- [x] **3b.** Separación con `audio-separator`: BS-RoFormer-SW vs Demucs `htdemucs_6s` → escuchar guitarra y piano. Ganó la cadena de MVSep a oído: 10 pistas en 5,7 minutos con Yo soy la ofrenda, gratis. Antes no convencieron Demucs, el modelo Mega de 53 pistas, restar pistas ni separar por posición estéreo.
 - [ ] **3c.** Tiempos y compases: Beat This!
 - [ ] **3d.** Secciones: SongFormer vs All-In-One → comparar con lo que ustedes dirían a oído.
 - [ ] **3e.** Acordes: BTC → comparar con lo que tocan.

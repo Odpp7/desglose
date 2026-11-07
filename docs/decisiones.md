@@ -6,14 +6,14 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 | --- | --- |
 | Tipo de app | Escritorio para Windows, instalable en una PC modesta; Android después |
 | Modelo de referencia | Moises (funciones) y StemDeck (arquitectura) |
-| Equipo mínimo | Windows 10 de 64 bits, 4 GB de RAM, sin tarjeta de video |
-| Distribución | Instalador normal para unas 10 personas |
+| Equipo mínimo | Windows 10 de 64 bits, 8 GB de RAM, procesador de 2 núcleos (AMD A9-9425), SSD y video integrado |
+| Distribución | Instalador normal para la PC de la iglesia |
 | Actualizaciones | Automáticas, sin que el usuario haga nada, y nunca en medio de un ensayo |
 | Función principal | La IA crea la secuencia completa y el equipo la edita |
 | Entrega | Paquete para REAPER; el encargado sigue con su flujo hacia la consola |
 | Interfaz | Tauri 2 + React + TypeScript |
 | Audio | Motor en Rust que lee desde el disco |
-| IA | Siempre en la nube: Python en Modal con FastAPI, uv, SSE y contrato tipado |
+| IA | Siempre en la nube: separar en MVSep; el resto en Modal con FastAPI, uv, SSE y contrato tipado |
 | Usuarios y nube de datos | No por ahora; Supabase si un día hay usuarios |
 | Voz guía | Piper (sintetizada, sin internet) más grabación opcional; todo editable |
 | Anticipación | 1 compás por defecto, 2 sugeridos en tempos rápidos, editable |
@@ -42,6 +42,11 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-05: cambiar el tono (RF-34) sube a prioridad alta y a la Fase 1, porque es importante para el equipo; se prueba junto con la velocidad en 1g, ya que usan la misma librería. El click no pasa por velocidad ni tono: se genera aparte. Sin decidir: si la exportación a REAPER puede salir en otro tono (la especificación dice que siempre sale original).
 - 2026-11-05: las pruebas de IA corren en Modal y no en la PC de desarrollo, para no instalar librerías y modelos pesados. Reemplaza lo anotado antes sobre correrlas en local. Falta confirmar si el 1 USD se renueva cada mes.
 - 2026-11-05: Modal no permite GPU sin método de pago ("Please add a payment method to use T4 GPU functions"). Sin tarjeta solo hay CPU. Tema abierto: agregar tarjeta con límite de gasto, usar CPU con un modelo más liviano, o procesar en la PC de desarrollo.
+- 2026-11-07: separar pasa a la API gratuita de MVSep, con una cadena por niveles: BS Roformer SW; voz a Karaoke (opción 6); guitarra a Acoustic Guitar; eléctricas a Lead/Rhythm; otros a Synth. Son 5 trabajos: 10 pistas en 5,7 minutos, aprobado a oído con Yo soy la ofrenda. Reemplaza la regla de una sola guitarra. Salen en FLAC de 16 bits, unos 2,5 dB más bajas que la original; 24 bits y la opción 8 de Karaoke son de pago. Riesgos: dependemos de un servicio externo, la canción se sube a MVSep y sus límites gratis pueden cambiar. BS-RoFormer-SW en Modal queda de respaldo. Modal queda para tempo, secciones, acordes y letra.
+- 2026-11-06: BS-RoFormer-SW es el modelo principal, en CPU de Modal: unos 12 centavos por canción (estimado desde fragmentos de 45 s). Probado a oído con dos canciones. MVSep Mega (53 pistas) gusta para coros y synth, pero cuesta unos 40 centavos y suena peor; queda como opción. Los pads quedan en la pista "otros".
+- 2026-11-06: regla de guitarras: una sola pista por defecto. La acústica solo se agrega si suena con claridad. No hay método confiable para separar dos eléctricas: se probaron modelo, resta y posición estéreo. Hay Libertad tiene las guitarras al centro; en Yo soy la ofrenda los lados sonaban a la misma guitarra.
+- 2026-11-06: la PC de referencia pasa a ser la real: HP Laptop 15-db0xxx, AMD A9-9425 (2 núcleos), 8 GB de RAM, SSD y Radeon R5 integrada. Reemplaza al supuesto de 4 GB. La IA sigue en la nube, porque el procesador no da para correrla. 
+- 2026-11-06: solo importa la PC de la iglesia, ya no se diseña para otras PCs. La meta de memoria sube de 400 MB a 1 GB, porque esa PC tiene 8 GB. Sigue vigente leer las pistas desde el disco. El límite real de esa PC es el procesador.
 - 2026-11-05: el instalador (1h) y la actualización automática (1i) se dejan para cuando la app real esté terminada, antes de repartirla. Salen de la Puerta 1. La actualización sigue siendo obligatoria en la primera versión que se reparta.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.
