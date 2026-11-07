@@ -67,9 +67,9 @@ Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba sol
 
 ## Paso 4 — Voz guía (`prototypes/voice-piper`)
 
-- [ ] Descargar Piper para Windows y una voz en español.
-- [ ] Generar el vocabulario completo (ver `docs/voces-guia.md`) como WAV cortos.
-- [ ] Mezclarlos sobre un click a 70, 120 y 160 BPM y escuchar si se entienden y caben en un tiempo.
+- [x] Descargar Piper para Windows y una voz en español.
+- [x] Generar el vocabulario completo (ver `docs/voces-guia.md`) como WAV cortos. 34 frases, 1,2 MB.
+- [x] Mezclarlos sobre un click a 70, 120 y 160 BPM y escuchar si se entienden y caben en un tiempo. Se eligió la voz es_MX-claude-high.
 
 **Pasa si:** la guía se entiende en audífonos y cabe en el tiempo.
 
@@ -77,7 +77,7 @@ Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba sol
 
 Se pasa a la Fase 1 (la app completa) cuando:
 
-- [ ] el motor de audio no se desfasa y respeta la RAM en la simulación de la PC modesta,
-- [ ] la IA da resultados útiles con sus canciones,
-- [ ] el `.RPP` abre bien en REAPER,
-- [ ] hay una forma de procesar las canciones que cabe en el costo cero (ver el tema abierto de Modal en `docs/decisiones.md`).
+- [x] el motor de audio no se desfasa y respeta la RAM en la simulación de la PC modesta,
+- [x] la IA da resultados útiles con sus canciones,
+- [x] el `.RPP` abre bien en REAPER (falta compararlo con una secuencia del encargado),
+- [x] hay una forma de procesar las canciones que cabe en el costo cero (ver el tema abierto de Modal en `docs/decisiones.md`).
