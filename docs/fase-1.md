@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Antes de empezar
 
-Lee `CLAUDE.md`, este documento y `docs/decisiones.md`. Trabaja en una rama nueva creada desde `fase-0`, que todavía no está en `main`.
+Lee `CLAUDE.md`, este documento y `docs/decisiones.md`. Trabaja en una rama nueva creada desde `main` (la Fase 0 ya está unida a `main`).
 
 Con Oscar:
 
@@ -172,4 +172,3 @@ También se borra lo que deje de usarse dentro de la app y los documentos que qu
 - **Frases nuevas de la voz guía:** grabarlas con micrófono o bajar la voz completa.
 - **Respaldo y límites:** qué ve el encargado si MVSep falla o sin internet.
 - **Actualización automática:** el repositorio es público, y GitHub Releases sirve. Guardar bien la clave de firma.
-- **Unir `fase-0` a `main`:** Oscar decide cuándo.
