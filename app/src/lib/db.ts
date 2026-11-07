@@ -11,9 +11,26 @@ export type Cancion = {
   artista: string;
   duracion_ms: number;
   archivo: string;
-  estado: "nueva";
+  /** nueva → separando → lista. Si falla: error (y se puede reintentar). */
+  estado: EstadoCancion;
   coleccion_id: number | null;
   creada_en: string;
+  /** Por qué falló la última vez que se creó la secuencia. */
+  error: string | null;
+};
+
+export type EstadoCancion = "nueva" | "separando" | "lista" | "error";
+
+export type Pista = {
+  id: number;
+  cancion_id: number;
+  /** "voz-lider", "coros", "bateria"... */
+  instrumento: string;
+  /** Dentro de la carpeta de la canción: "pistas/voz-lider.flac". */
+  archivo: string;
+  /** SQLite no tiene booleanos: 0 o 1. */
+  vacia: number;
+  orden: number;
 };
 
 export type Coleccion = {
@@ -71,10 +88,38 @@ export async function moverCancion(id: number, coleccionId: number | null) {
   await db.execute("UPDATE canciones SET coleccion_id = $1 WHERE id = $2", [coleccionId, id]);
 }
 
-/** Solo borra la fila. La carpeta con el audio se borra con `borrarCarpetaCancion`. */
+/** Solo borra las filas. La carpeta con el audio se borra con `borrarCarpetaCancion`. */
 export async function borrarCancion(id: number) {
   const db = await base();
+  await db.execute("DELETE FROM pistas WHERE cancion_id = $1", [id]);
   await db.execute("DELETE FROM canciones WHERE id = $1", [id]);
+}
+
+export async function cambiarEstado(id: number, estado: EstadoCancion, error: string | null = null) {
+  const db = await base();
+  await db.execute("UPDATE canciones SET estado = $1, error = $2 WHERE id = $3", [estado, error, id]);
+}
+
+// ---------- Pistas ----------
+
+export async function listarPistas(cancionId: number) {
+  const db = await base();
+  return db.select<Pista[]>("SELECT * FROM pistas WHERE cancion_id = $1 ORDER BY orden", [cancionId]);
+}
+
+/** Reemplaza las pistas de la canción por las nuevas, en ese orden. */
+export async function guardarPistas(
+  cancionId: number,
+  pistas: { instrumento: string; archivo: string; vacia: boolean }[],
+) {
+  const db = await base();
+  await db.execute("DELETE FROM pistas WHERE cancion_id = $1", [cancionId]);
+  for (const [orden, p] of pistas.entries()) {
+    await db.execute(
+      "INSERT INTO pistas (cancion_id, instrumento, archivo, vacia, orden) VALUES ($1, $2, $3, $4, $5)",
+      [cancionId, p.instrumento, p.archivo, p.vacia ? 1 : 0, orden],
+    );
+  }
 }
 
 // ---------- Colecciones ----------

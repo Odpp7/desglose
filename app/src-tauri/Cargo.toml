@@ -29,6 +29,7 @@ hound = "3.5.1"
 signalsmith-stretch = "0.1.3"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-dialog = "2"
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "blocking", "multipart", "json"] }
 
 
 # El cambio de velocidad es pesado: sin esto, en modo desarrollo no alcanza a correr en vivo.

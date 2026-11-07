@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Encabezado } from "../../components/Encabezado";
+import { carpetaPistas } from "../../lib/archivos";
 import { IconoInicio, IconoPausa, IconoPlay } from "../../components/icons";
 import { escucharEstado, formatoTiempo, motor, type EstadoMotor } from "../../lib/engine";
 
@@ -47,11 +49,21 @@ export function EditorPage() {
     }
   }
 
-  async function cargar() {
+  // Si viene de una canción (`#/editor?cancion=7`), carga sus pistas separadas.
+  const cancionId = useSearchParams()[0].get("cancion");
+  useEffect(() => {
+    if (!cancionId) return;
+    carpetaPistas(Number(cancionId)).then((ruta) => {
+      setCarpeta(ruta);
+      cargar(ruta);
+    });
+  }, [cancionId]);
+
+  async function cargar(ruta = carpeta) {
     setError("");
     try {
       // Quita las comillas que agrega "Copiar como ruta de acceso" en Windows.
-      const limpia = carpeta.trim().replace(/^"|"$/g, "");
+      const limpia = ruta.trim().replace(/^"|"$/g, "");
       const nombres = await motor.cargarCarpeta(limpia);
       setPistas(nombres.map((n) => ({ nombre: sinExtension(n), volumen: 1, mute: false, solo: false })));
       // El click llega en el paso 5: por ahora queda callado.
@@ -91,7 +103,7 @@ export function EditorPage() {
           className="min-w-0 flex-1 rounded-lg border border-line bg-ink-2 px-3 py-2 font-mono text-[12px] placeholder:text-fg-3"
         />
         <button
-          onClick={cargar}
+          onClick={() => cargar()}
           className="rounded-lg border border-line-2 bg-ink-3 px-4 font-semibold hover:text-fg"
         >
           Cargar

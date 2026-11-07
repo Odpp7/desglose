@@ -1,12 +1,16 @@
+mod ajustes;
 mod audio;
 mod biblioteca;
 mod commands;
 mod db;
+mod mvsep;
+mod secuencia;
 
 use std::thread;
 use std::time::Duration;
 
 use audio::engine::Motor;
+use secuencia::Separacion;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -19,6 +23,7 @@ pub fn run() {
                 .build(),
         )
         .manage(Motor::default())
+        .manage(Separacion::default())
         .setup(|app| {
             // Avisa a la interfaz la posición y el estado unas 30 veces por segundo.
             let app = app.handle().clone();
@@ -42,7 +47,14 @@ pub fn run() {
             commands::mute,
             commands::solo,
             biblioteca::copiar_cancion,
-            biblioteca::borrar_cancion
+            biblioteca::borrar_cancion,
+            biblioteca::carpeta_pistas,
+            ajustes::guardar_clave_mvsep,
+            ajustes::hay_clave_mvsep,
+            secuencia::crear_secuencia,
+            secuencia::secuencia_en_curso,
+            secuencia::fila_mvsep,
+            secuencia::pistas_guardadas
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

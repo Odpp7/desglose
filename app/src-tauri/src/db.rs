@@ -12,10 +12,11 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 pub const BASE: &str = "sqlite:desglose.db";
 
 pub fn migraciones() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "crear la biblioteca",
-        sql: "
+    vec![
+        Migration {
+            version: 1,
+            description: "crear la biblioteca",
+            sql: "
             CREATE TABLE colecciones (
                 id        INTEGER PRIMARY KEY,
                 nombre    TEXT NOT NULL,
@@ -34,6 +35,27 @@ pub fn migraciones() -> Vec<Migration> {
                 creada_en    TEXT NOT NULL DEFAULT (datetime('now'))
             );
         ",
-        kind: MigrationKind::Up,
-    }]
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "pistas separadas",
+            sql: "
+                -- Las 10 pistas que devuelve Crear secuencia.
+                CREATE TABLE pistas (
+                    id          INTEGER PRIMARY KEY,
+                    cancion_id  INTEGER NOT NULL REFERENCES canciones(id) ON DELETE CASCADE,
+                    instrumento TEXT NOT NULL,
+                    archivo     TEXT NOT NULL,
+                    vacia       INTEGER NOT NULL DEFAULT 0,
+                    orden       INTEGER NOT NULL
+                );
+
+                -- Por qué falló la última vez que se intentó crear la secuencia.
+                -- canciones.estado ahora puede ser: nueva, separando, lista o error.
+                ALTER TABLE canciones ADD COLUMN error TEXT;
+            ",
+            kind: MigrationKind::Up,
+        },
+    ]
 }

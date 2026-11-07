@@ -13,6 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::audio::track;
+use crate::secuencia::Separacion;
 
 const FORMATOS: [&str; 4] = ["mp3", "wav", "flac", "m4a"];
 
@@ -25,7 +26,7 @@ pub struct CancionCopiada {
     duracion_ms: u64,
 }
 
-fn carpeta_cancion(app: &AppHandle, id: i64) -> Result<PathBuf, String> {
+pub fn carpeta_cancion(app: &AppHandle, id: i64) -> Result<PathBuf, String> {
     let base = app
         .path()
         .app_local_data_dir()
@@ -51,8 +52,8 @@ fn medir_duracion_ms(ruta: &Path) -> Result<u64, String> {
 #[tauri::command(async)]
 pub fn copiar_cancion(app: AppHandle, id: i64, origen: String) -> Result<CancionCopiada, String> {
     let origen = PathBuf::from(origen);
-    let extension = formato(&origen)
-        .ok_or("Ese archivo no es una canción. Usa un MP3, WAV, FLAC o M4A.")?;
+    let extension =
+        formato(&origen).ok_or("Ese archivo no es una canción. Usa un MP3, WAV, FLAC o M4A.")?;
     let duracion_ms = medir_duracion_ms(&origen)?;
 
     let carpeta = carpeta_cancion(&app, id)?;
@@ -71,6 +72,10 @@ pub fn copiar_cancion(app: AppHandle, id: i64, origen: String) -> Result<Cancion
 /// Borra la carpeta de la canción con todo lo que tenga adentro.
 #[tauri::command(async)]
 pub fn borrar_cancion(app: AppHandle, id: i64) -> Result<(), String> {
+    // Si MVSep está trabajando en ella, borrarla rompería la separación a mitad.
+    if app.state::<Separacion>().en_curso() == Some(id) {
+        return Err("Esta canción se está separando. Espera a que termine para borrarla.".into());
+    }
     let carpeta = carpeta_cancion(&app, id)?;
     if carpeta.exists() {
         fs::remove_dir_all(&carpeta).map_err(|e| format!("No se pudo borrar la canción: {e}"))?;
@@ -78,12 +83,22 @@ pub fn borrar_cancion(app: AppHandle, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+/// Carpeta con las pistas separadas de una canción. La usa el editor de prueba
+/// para cargarlas en el motor; en el paso 4 el editor las cargará por su cuenta.
+#[tauri::command]
+pub fn carpeta_pistas(app: AppHandle, id: i64) -> Result<String, String> {
+    let carpeta = carpeta_cancion(&app, id)?.join("pistas");
+    Ok(carpeta.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
 
     fn muestra(nombre: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples").join(nombre)
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples")
+            .join(nombre)
     }
 
     #[test]
@@ -108,6 +123,9 @@ mod pruebas {
 
     #[test]
     fn sintetica_dura_cinco_minutos() {
-        assert_eq!(medir_duracion_ms(&muestra("sinteticas/pista1.flac")).unwrap(), 300_000);
+        assert_eq!(
+            medir_duracion_ms(&muestra("sinteticas/pista1.flac")).unwrap(),
+            300_000
+        );
     }
 }

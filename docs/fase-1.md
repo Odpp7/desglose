@@ -66,7 +66,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | --- | --- |
 | 1. Base ✅ | La app en `app/`, modo oscuro, pantallas y motor integrado |
 | 2. Biblioteca ✅ | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
-| 3. Crear secuencia | Un botón separa en 10 pistas, con avance por etapa |
+| 3. Crear secuencia ✅ | Un botón separa en 6 pistas con 1 trabajo de MVSep, con avance y espera estimada. Botones opcionales aparte: voz líder y coros, guitarras, synth |
 | 4. Editor | Línea de tiempo con ondas, transporte y mezclador. "Añadir pista": un archivo propio (WAV, MP3 o FLAC) que se arrastra para alinearlo. Campo "Tono original", que escribe el encargado |
 | 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones | La IA propone; mover, renombrar, dividir, unir y borrar, con deshacer |
@@ -79,8 +79,8 @@ Tras el paso 8 ya se puede usar una secuencia real en un culto.
 
 ## Decisiones ya tomadas
 
-- **Separación:** API gratuita de MVSep, en cadena por niveles. Respaldo: BS-RoFormer-SW en Modal, con una sola guitarra.
-- **Pistas:** voz líder, coros, batería, bajo, piano, guitarra acústica, guitarra lead, guitarra rítmica, synth y otros. Las vacías se ocultan.
+- **Separación:** API gratuita de MVSep, **por partes**. "Crear secuencia" hace 1 trabajo (BS Roformer SW): voz, batería, bajo, piano, guitarra y otros. Aparte, el encargado decide si separa voz líder y coros (Karaoke, 1 trabajo), guitarras (Acoustic + Lead/Rhythm, 2 trabajos) o synth (1 trabajo). Motivo: en el plan gratis cada trabajo hace la fila completa y solo hay uno a la vez; el 7 de noviembre había unos 400 en fila y un solo trabajo tardó 80 minutos. Respaldo: BS-RoFormer-SW en Modal.
+- **Pistas:** base: voz, batería, bajo, piano, guitarra y otros. Al separar más, la pista dividida se reemplaza por sus partes (voz → voz líder y coros; guitarra → acústica, lead y rítmica; otros → synth y otros). Las vacías (suenan menos del 2% de los segundos, a -40 dB) se ocultan.
 - **Click:** manual. El encargado define BPM, compás e inicio. La IA no lo detecta: Beat This! falló en tramos, y decidir entre 70 y 140 es musical.
 - **Secciones:** SongFormer propone, el encargado corrige. Se numeran en orden: Verso 1, Verso 2. Acierta solo en parte.
 - **Voz guía:** `es_MX-claude-high` de Piper. La app incluye las frases ya generadas (1,2 MB), no la voz completa (60 MB).
@@ -161,7 +161,7 @@ También se borra lo que deje de usarse dentro de la app y los documentos que qu
 ## Claves
 
 - La clave de MVSep está en `prototypes/ai-pipeline/.env`, que no se sube a git. Oscar la cambiará después. Nunca escribirla en código ni en documentos.
-- La app real las necesita en la PC de la iglesia. Definir en el paso 3 dónde se guardan.
+- En la app, la clave de MVSep la pega el encargado en Ajustes y se guarda en `%APPDATA%\com.desglose.app\clave-mvsep.txt`. La interfaz nunca la lee: solo sabe si hay una.
 - La cuenta de Modal es `odpp7`, y su configuración está en `~/.modal.toml`.
 
 ## Pendiente
@@ -169,5 +169,7 @@ También se borra lo que deje de usarse dentro de la app y los documentos que qu
 - **Secuencia del encargado:** antes del paso 8, para copiar su formato. Pasa la prueba cuando él diga "esto es como lo que uso".
 - **Frecuencia de exportación:** las pistas salen a 44.1 kHz y la especificación pide 48 kHz por defecto. Se decide al ver la secuencia del encargado.
 - **Frases nuevas de la voz guía:** grabarlas con micrófono o bajar la voz completa.
-- **Respaldo y límites:** qué ve el encargado si MVSep falla o sin internet.
+- **Respaldo y límites:** si MVSep falla o no hay internet, el encargado ve el motivo y "Reintentar" (decidido en el paso 3). Falta decidir si se usa el respaldo en Modal.
+- **Mejor horario para MVSep:** `app/scripts/medir-fila-mvsep.ps1` anota la fila cada 30 minutos en `samples/fila-mvsep.csv`. Revisar con uno o dos días de datos.
+- **Preparar canciones en cola** (por ejemplo, de noche): idea para cuando el encargado tenga varias canciones.
 - **Actualización automática:** el repositorio es público, y GitHub Releases sirve. Guardar bien la clave de firma.

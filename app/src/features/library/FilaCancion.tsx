@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CampoTexto } from "../../components/CampoTexto";
+import { EstadoCancion } from "../../components/EstadoCancion";
 import { IconoNota } from "../../components/icons";
 import { Menu, OpcionMenu, TituloMenu } from "../../components/Menu";
 import type { Cancion, Coleccion } from "../../lib/db";
@@ -52,7 +53,7 @@ export function FilaCancion({ cancion, colecciones, mostrarColeccion, ...accione
       <span className="truncate text-fg-3">{mostrarColeccion ? (coleccion?.nombre ?? "Sin ordenar") : ""}</span>
       <span className="text-right font-mono text-fg-2 tabular-nums">{formatoDuracion(cancion.duracion_ms)}</span>
       <span>
-        <span className="rounded-full bg-ink-3 px-2 py-0.5 text-[11px] text-fg-2">Sin secuencia</span>
+        <EstadoCancion cancionId={cancion.id} estado={cancion.estado} />
       </span>
 
       <Menu etiqueta={`Opciones de ${cancion.titulo}`}>

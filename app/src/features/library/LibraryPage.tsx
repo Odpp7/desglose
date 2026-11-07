@@ -5,6 +5,7 @@ import { Confirmar } from "../../components/Confirmar";
 import { IconoBuscar, IconoMas, IconoSubir } from "../../components/icons";
 import { FORMATOS, borrarCarpetaCancion } from "../../lib/archivos";
 import * as db from "../../lib/db";
+import { useVersionSecuencias } from "../../lib/secuencia";
 import type { Cancion, Coleccion } from "../../lib/db";
 import { Colecciones, type Filtro } from "./Colecciones";
 import { FilaCancion } from "./FilaCancion";
@@ -39,9 +40,11 @@ export function LibraryPage() {
     }
   }, []);
 
+  // Se recarga al abrir y cada vez que una secuencia termina o falla.
+  const versionSecuencias = useVersionSecuencias();
   useEffect(() => {
     recargar();
-  }, [recargar]);
+  }, [recargar, versionSecuencias]);
 
   // Los avisos buenos se van solos; los errores se quedan hasta cerrarlos.
   useEffect(() => {

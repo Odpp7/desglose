@@ -14,6 +14,11 @@ export function borrarCarpetaCancion(id: number) {
   return invoke<void>("borrar_cancion", { id });
 }
 
+/** Ruta completa de la carpeta con las pistas separadas de una canción. */
+export function carpetaPistas(id: number) {
+  return invoke<string>("carpeta_pistas", { id });
+}
+
 /** "C:\Música\Hay Libertad.mp3" → "Hay Libertad.mp3" */
 export function nombreArchivo(ruta: string) {
   return ruta.split(/[\\/]/).pop() ?? ruta;

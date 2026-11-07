@@ -99,6 +99,27 @@ impl Lector {
         Ok((ubicado.required_ts.get() - ubicado.actual_ts.get()).max(0) as usize)
     }
 
+    /// Decodifica el archivo completo, de principio a fin, sin convertir la frecuencia.
+    /// Entrega cada bloque intercalado (izq, der, izq, der...) con su número de canales.
+    /// Sirve para analizar una pista entera, por ejemplo para saber si está vacía.
+    pub fn recorrer(mut self, mut al_bloque: impl FnMut(&[f32], usize)) {
+        let mut decodificado: Vec<f32> = Vec::new();
+        while let Ok(Some(paquete)) = self.formato.next_packet() {
+            if paquete.track_id != self.id_pista {
+                continue;
+            }
+            let audio = match self.decodificador.decode(&paquete) {
+                Ok(audio) => audio,
+                Err(Error::DecodeError(_)) => continue,
+                Err(_) => break,
+            };
+            let canales = audio.spec().channels().count();
+            decodificado.resize(audio.samples_interleaved(), 0.0);
+            audio.copy_to_slice_interleaved(&mut decodificado);
+            al_bloque(&decodificado, canales);
+        }
+    }
+
     // Corre en su propio hilo hasta terminar el archivo o hasta que `parar` sea verdadero.
     // Deja en la cola audio estéreo intercalado (izq, der, izq, der...) a `rate_salida`.
     pub fn leer(
