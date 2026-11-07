@@ -4,18 +4,19 @@ Una especie de Moises para equipos de alabanza, gratis. App de escritorio para W
 
 ## Estado
 
-**Fase 0 — Pruebas.** Validando el núcleo de audio, los modelos de IA y la exportación a REAPER antes de construir la interfaz.
+**Fase 1 — La app real.** La Fase 0 ya validó el audio, la separación, las secciones, REAPER y la voz guía. Plan en [`docs/fase-1.md`](docs/fase-1.md).
 
 ## Empezar
 
 1. Instala las herramientas: [`SETUP-WINDOWS.md`](SETUP-WINDOWS.md).
-2. Lee el plan de la fase actual: [`docs/fase-0.md`](docs/fase-0.md).
+2. Lee el plan de la fase actual: [`docs/fase-1.md`](docs/fase-1.md).
 3. Abre esta carpeta con Claude Code; el contexto está en [`CLAUDE.md`](CLAUDE.md).
 
 ## Documentos
 
 - [`docs/especificacion.md`](docs/especificacion.md) — qué hace la app y cómo.
 - [`docs/decisiones.md`](docs/decisiones.md) — decisiones tomadas y por qué.
+- [`docs/fase-1.md`](docs/fase-1.md) — plan de la app real y lo aprendido.
 - [`docs/fase-0.md`](docs/fase-0.md) — pruebas antes de construir.
 - [`docs/voces-guia.md`](docs/voces-guia.md) — cómo funcionan las guías y reglas de la app.
 

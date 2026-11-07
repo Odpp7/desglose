@@ -83,9 +83,9 @@ desglose/
   samples/             # canciones de prueba (NO se suben a git)
 ```
 
-## Fase actual: **Fase 0 — Pruebas**
+## Fase actual: **Fase 1 — La app real**
 
-No construir la app completa todavía. Primero se valida lo riesgoso. Ver `docs/fase-0.md` para la lista y el orden.
+La Fase 0 terminó. Lee `docs/fase-1.md` antes de empezar: tiene el plan, lo decidido, lo aprendido y el código que se reutiliza. Si algo choca con `docs/especificacion.md`, manda `docs/fase-1.md`.
 
 ## Comandos útiles
 
