@@ -74,10 +74,9 @@ desglose/
   README.md
   SETUP-WINDOWS.md     # instalación de herramientas (PC de desarrollo)
   docs/                # especificación, decisiones, fase 0, voces guía
-  app/                 # app Tauri + React (se crea en la Fase 1)
+  app/                 # app Tauri + React (ver app/README.md)
   backend/             # pipeline de IA en Python (uv) desplegado en Modal
-  prototypes/          # pruebas de la Fase 0
-    audio-engine/      # Tauri mínimo + motor Rust: 8 pistas sin desfase
+  prototypes/          # pruebas de la Fase 0; se borran al pasar a la app
     rpp-export/        # generar un .RPP y abrirlo en REAPER
     ai-pipeline/       # probar modelos con canciones reales
     voice-piper/       # paquete de voz en español
@@ -98,10 +97,13 @@ uv --version
 ffmpeg -version
 uv run modal --version
 
-# Prototipo de audio (cuando exista)
-cd prototypes/audio-engine
+# App
+cd app
 npm install
 npm run tauri dev
+
+# Pruebas del motor de audio (desde app/src-tauri)
+cargo test
 
 # Backend (cuando exista)
 cd backend

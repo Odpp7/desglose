@@ -3,7 +3,7 @@
 # Al ser idénticas, cualquier desfase entre ellas se nota enseguida.
 # Van a volumen bajo para que las 8 sumadas no saturen.
 
-$raiz = Resolve-Path "$PSScriptRoot\..\..\.."
+$raiz = Resolve-Path "$PSScriptRoot\..\.."
 $destino = Join-Path $raiz "samples\sinteticas"
 New-Item -ItemType Directory -Force $destino | Out-Null
 

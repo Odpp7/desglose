@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+  Colores y letras de Desglose (modo oscuro).
+  Cada token se usa en Tailwind como clase: bg-ink-1, text-fg-2, border-line...
+  Las letras son las de Windows: no se descarga nada y funciona sin internet.
+*/
+@theme {
+  --color-ink-0: #0a0d13;
+  --color-ink-1: #10141c;
+  --color-ink-2: #161b26;
+  --color-ink-3: #1e2431;
+  --color-line: #232a38;
+  --color-line-2: #2e3647;
+
+  --color-fg: #e9ecf3;
+  --color-fg-2: #a1aabd;
+  --color-fg-3: #6a7387;
+
+  --color-accent: #8ea2ff;
+  --color-accent-ink: #0d1330;
+
+  /* Colores de las secciones */
+  --color-sec-intro: #5d6880;
+  --color-sec-verso: #9583f2;
+  --color-sec-pre: #e2a65a;
+  --color-sec-coro: #4fc8b1;
+  --color-sec-puente: #e682a8;
+
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink-0);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color-scheme: dark;
+  /* Es una app, no una página: el texto no se selecciona al hacer clic. */
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

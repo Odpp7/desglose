@@ -64,8 +64,8 @@ Cambios aprobados frente a `docs/especificacion.md`:
 
 | Paso | Al terminar se tiene |
 | --- | --- |
-| 1. Base | La app en `app/`, modo oscuro, pantallas y motor integrado |
-| 2. Biblioteca | Agregar, buscar y borrar canciones, con SQLite. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
+| 1. Base ✅ | La app en `app/`, modo oscuro, pantallas y motor integrado |
+| 2. Biblioteca | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
 | 3. Crear secuencia | Un botón separa en 10 pistas, con avance por etapa |
 | 4. Editor | Línea de tiempo con ondas, transporte y mezclador. "Añadir pista": un archivo propio (WAV, MP3 o FLAC) que se arrastra para alinearlo. Campo "Tono original", que escribe el encargado |
 | 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
@@ -94,8 +94,7 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 
 | Origen | Qué es | Destino |
 | --- | --- | --- |
-| `prototypes/audio-engine/src-tauri/src/audio/` | Motor: `engine.rs`, `track.rs`, `click.rs`, `stretch.rs`, `render.rs` | `app/src-tauri/src/audio/` |
-| `prototypes/audio-engine/src-tauri/src/commands.rs` | Órdenes de Tauri | `app/src-tauri/src/commands.rs` |
+| ~~`prototypes/audio-engine/`~~ | Motor y órdenes de Tauri | Ya en `app/src-tauri/` (paso 1) |
 | `prototypes/rpp-export/src/rpp.rs` | Escritor de `.RPP` | `app/src-tauri/src/export/rpp.rs` |
 | `prototypes/ai-pipeline/mvsep.py` | Cadena de MVSep | Pasarla a Rust, en la app |
 | `prototypes/ai-pipeline/secciones.py` | SongFormer en Modal | `backend/`, como una función web |
@@ -113,7 +112,7 @@ Las pruebas que no sirvieron quedan en el historial de git como referencia: `pro
 
 | Prototipo | Se borra al terminar |
 | --- | --- |
-| `prototypes/audio-engine/` | Paso 1 |
+| ~~`prototypes/audio-engine/`~~ | Paso 1 ✅ |
 | `prototypes/ai-pipeline/` | Paso 6 (MVSep pasa a Rust en el 3; SongFormer y el respaldo pasan a `backend/` en el 6) |
 | `prototypes/voice-piper/` | Paso 7 |
 | `prototypes/rpp-export/` | Paso 8 |

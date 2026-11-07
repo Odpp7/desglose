@@ -273,7 +273,7 @@ mod pruebas {
     fn comprobar(rate: u32, inicio: f64, primer_click: f64, total_clicks: usize) {
         let ruta = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../samples/sinteticas/pista1.flac"
+            "/../../samples/sinteticas/pista1.flac"
         );
         let lector = abrir(Path::new(ruta)).expect("falta correr scripts/generar-pistas.ps1");
         assert_eq!(lector.duracion(), 300.0);

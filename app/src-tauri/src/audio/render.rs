@@ -97,7 +97,7 @@ mod pruebas {
 
     fn ruta_sintetica(numero: u32) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join(format!("../../../samples/sinteticas/pista{numero}.flac"))
+            .join(format!("../../samples/sinteticas/pista{numero}.flac"))
     }
 
     // Compara el WAV contra un cálculo aparte, hecho sin el Mezclador:

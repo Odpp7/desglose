@@ -618,7 +618,7 @@ mod pruebas {
         (1..=8)
             .map(|i| {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join(format!("../../../samples/sinteticas/pista{i}.flac"))
+                    .join(format!("../../samples/sinteticas/pista{i}.flac"))
             })
             .collect()
     }
