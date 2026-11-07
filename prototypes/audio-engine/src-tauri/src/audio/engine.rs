@@ -60,6 +60,7 @@ pub(super) struct Compartido {
     cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
     bpm: AtomicU32, // f32 guardado como bits, igual que el volumen
     tiempos_por_compas: AtomicU32,
+    inicio_click: AtomicU32, // f32 como bits: segundo donde cae el primer tiempo
     velocidad: AtomicU32, // f32 como bits; 1 = normal. Es solo para estudiar, no se exporta
     semitonos: AtomicU32, // f32 como bits; 0 = tono original. Tampoco se exporta
     pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click
@@ -80,6 +81,7 @@ impl Compartido {
             cuadros_sonados: AtomicU64::new(0),
             bpm: AtomicU32::new(120.0f32.to_bits()),
             tiempos_por_compas: AtomicU32::new(4),
+            inicio_click: AtomicU32::new(0.0f32.to_bits()),
             velocidad: AtomicU32::new(1.0f32.to_bits()),
             semitonos: AtomicU32::new(0.0f32.to_bits()),
             pistas,
@@ -92,8 +94,9 @@ impl Compartido {
             .store(valor.to_bits(), Ordering::Relaxed);
     }
 
-    pub(super) fn fijar_click(&self, bpm: f32, tiempos_por_compas: u32) {
+    pub(super) fn fijar_click(&self, bpm: f32, tiempos_por_compas: u32, inicio: f32) {
         self.bpm.store(bpm.to_bits(), Ordering::Relaxed);
+        self.inicio_click.store(inicio.to_bits(), Ordering::Relaxed);
         self.tiempos_por_compas
             .store(tiempos_por_compas, Ordering::Relaxed);
     }
@@ -109,6 +112,7 @@ impl Compartido {
         copia.fijar_click(
             f32::from_bits(self.bpm.load(Ordering::Relaxed)),
             self.tiempos_por_compas.load(Ordering::Relaxed),
+            f32::from_bits(self.inicio_click.load(Ordering::Relaxed)),
         );
         for (indice, pista) in self.pistas.iter().enumerate() {
             copia.fijar_volumen(indice, pista.volumen());
@@ -266,8 +270,8 @@ impl Motor {
         self.con_compartido(|c| c.reproduciendo.store(false, Ordering::Relaxed))
     }
 
-    pub fn click(&self, bpm: f32, tiempos_por_compas: u32) -> Result<(), String> {
-        self.con_compartido(|c| c.fijar_click(bpm, tiempos_por_compas))
+    pub fn click(&self, bpm: f32, tiempos_por_compas: u32, inicio: f32) -> Result<(), String> {
+        self.con_compartido(|c| c.fijar_click(bpm, tiempos_por_compas, inicio))
     }
 
     pub fn estudio(&self, velocidad: f32, semitonos: f32) -> Result<(), String> {
@@ -377,7 +381,7 @@ impl Mezclador {
             paso_rampa: 1.0 / (SEGUNDOS_RAMPA * rate as f32),
             rate,
             cuadro: (inicio * rate as f64).round() as u64,
-            click: Click::new(120.0, 4, rate),
+            click: Click::new(120.0, 4, rate, 0.0),
             estirador: Estirador::new(rate),
             velocidad: 1.0,
             en_estudio: false,
@@ -389,7 +393,8 @@ impl Mezclador {
     pub(super) fn leer_controles(&mut self) {
         let bpm = f32::from_bits(self.compartido.bpm.load(Ordering::Relaxed));
         let tiempos = self.compartido.tiempos_por_compas.load(Ordering::Relaxed);
-        self.click = Click::new(bpm, tiempos, self.rate);
+        let inicio = f32::from_bits(self.compartido.inicio_click.load(Ordering::Relaxed));
+        self.click = Click::new(bpm, tiempos, self.rate, inicio);
 
         self.velocidad = f32::from_bits(self.compartido.velocidad.load(Ordering::Relaxed));
         let semitonos = f32::from_bits(self.compartido.semitonos.load(Ordering::Relaxed));

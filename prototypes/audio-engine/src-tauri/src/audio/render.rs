@@ -113,7 +113,7 @@ mod pruebas {
         controles.fijar_volumen(2, 1.0);
         controles.pistas[2].mute.store(true, Ordering::Relaxed);
         controles.fijar_volumen(3, volumen_click);
-        controles.fijar_click(bpm, tiempos);
+        controles.fijar_click(bpm, tiempos, 0.0);
 
         let destino = std::env::temp_dir().join("desglose-prueba-exportar.wav");
         let rutas = [ruta_sintetica(1), ruta_sintetica(2), ruta_sintetica(3)];
@@ -130,7 +130,7 @@ mod pruebas {
         let parar = Arc::new(AtomicBool::new(false));
         let hilo = thread::spawn(move || lector.leer(0.0, rate, productor, parar));
 
-        let click = Click::new(bpm, tiempos, rate);
+        let click = Click::new(bpm, tiempos, rate, 0.0);
         let mut muestras = wav.samples::<i32>();
         let mut mayor = 0.0f32;
         for cuadro in 0..(300 * rate) as u64 {

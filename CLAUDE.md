@@ -7,10 +7,9 @@ Lee este archivo completo antes de hacer cualquier cosa en el proyecto.
 Una especie de **Moises para equipos de alabanza**, gratis. App de **escritorio para Windows** (Tauri) que recibe una canción (MP3/WAV/FLAC) y **crea sola la secuencia completa**:
 
 - instrumentos separados con IA (voz líder, coros, batería, bajo, piano, guitarras acústica, lead y rítmica, synth, otros),
-- tempo, compases y primer tiempo de cada compás,
 - acordes (cifrado americano: C, D, Em, G/B) y tonalidad,
 - secciones con nombre en español (Intro, Verso 1, Pre-coro, Coro 1, Puente, Solo, Final...),
-- click y voz guía hablando ("Coro, 2, 3, 4" un compás antes de cada sección).
+- voz guía hablando ("Coro, 2, 3, 4" un compás antes de cada sección) y click, cuyo BPM, compás e inicio define el encargado.
 
 El usuario revisa y **edita todo**, y luego **exporta un paquete para REAPER** (un WAV por pista, `CLICK.wav`, `GUIA.wav` y un proyecto `.RPP` con las secciones como regiones). El encargado de sonido abre ese paquete en su REAPER y lo manda a la consola como siempre. La app **no** se conecta a la consola.
 

@@ -17,7 +17,7 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 | Usuarios y nube de datos | No por ahora; Supabase si un día hay usuarios |
 | Voz guía | Piper (sintetizada, sin internet) más grabación opcional; todo editable |
 | Anticipación | 1 compás por defecto, 2 sugeridos en tempos rápidos, editable |
-| Click | Cualquier compás, cambios de tempo, subdivisión, todo editable |
+| Click | Lo define el encargado: BPM, compás e inicio. Cualquier compás, cambios de tempo, subdivisión |
 | Cifrado | Americano: C, D, Em, G/B |
 | Costo | Cero: todo gratuito o con créditos gratis |
 | Nombre y diseño | Desglose, modo oscuro |
@@ -42,6 +42,7 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-05: cambiar el tono (RF-34) sube a prioridad alta y a la Fase 1, porque es importante para el equipo; se prueba junto con la velocidad en 1g, ya que usan la misma librería. El click no pasa por velocidad ni tono: se genera aparte. Sin decidir: si la exportación a REAPER puede salir en otro tono (la especificación dice que siempre sale original).
 - 2026-11-05: las pruebas de IA corren en Modal y no en la PC de desarrollo, para no instalar librerías y modelos pesados. Reemplaza lo anotado antes sobre correrlas en local. Falta confirmar si el 1 USD se renueva cada mes.
 - 2026-11-05: Modal no permite GPU sin método de pago ("Please add a payment method to use T4 GPU functions"). Sin tarjeta solo hay CPU. Tema abierto: agregar tarjeta con límite de gasto, usar CPU con un modelo más liviano, o procesar en la PC de desarrollo.
+- 2026-11-07: el click ya no se detecta solo: el encargado elige BPM, compás y dónde cae el primer tiempo. Beat This! falló en tramos, y si una canción va a 70 o a 140 es una decisión musical. Se quita RF-47.
 - 2026-11-07: separar pasa a la API gratuita de MVSep, con una cadena por niveles: BS Roformer SW; voz a Karaoke (opción 6); guitarra a Acoustic Guitar; eléctricas a Lead/Rhythm; otros a Synth. Son 5 trabajos: 10 pistas en 5,7 minutos, aprobado a oído con Yo soy la ofrenda. Reemplaza la regla de una sola guitarra. Salen en FLAC de 16 bits, unos 2,5 dB más bajas que la original; 24 bits y la opción 8 de Karaoke son de pago. Riesgos: dependemos de un servicio externo, la canción se sube a MVSep y sus límites gratis pueden cambiar. BS-RoFormer-SW en Modal queda de respaldo. Modal queda para tempo, secciones, acordes y letra.
 - 2026-11-06: BS-RoFormer-SW es el modelo principal, en CPU de Modal: unos 12 centavos por canción (estimado desde fragmentos de 45 s). Probado a oído con dos canciones. MVSep Mega (53 pistas) gusta para coros y synth, pero cuesta unos 40 centavos y suena peor; queda como opción. Los pads quedan en la pista "otros".
 - 2026-11-06: regla de guitarras: una sola pista por defecto. La acústica solo se agrega si suena con claridad. No hay método confiable para separar dos eléctricas: se probaron modelo, resta y posición estéreo. Hay Libertad tiene las guitarras al centro; en Yo soy la ofrenda los lados sonaban a la misma guitarra.

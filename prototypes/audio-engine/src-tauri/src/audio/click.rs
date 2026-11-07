@@ -15,16 +15,18 @@ pub struct Click {
     cuadros_por_tiempo: f64,
     tiempos_por_compas: u64,
     rate: f64,
+    inicio: f64, // cuadro donde cae el primer tiempo de la canción
 }
 
 impl Click {
     // `bpm` cuenta el pulso del compás: en 6/8 son corcheas, seis por compás.
-    pub fn new(bpm: f32, tiempos_por_compas: u32, rate: u32) -> Self {
+    pub fn new(bpm: f32, tiempos_por_compas: u32, rate: u32, inicio_segundos: f32) -> Self {
         let rate = rate as f64;
         Self {
             cuadros_por_tiempo: rate * 60.0 / bpm.max(1.0) as f64,
             tiempos_por_compas: tiempos_por_compas.max(1) as u64,
             rate,
+            inicio: inicio_segundos.max(0.0) as f64 * rate,
         }
     }
 
@@ -37,6 +39,7 @@ impl Click {
     // Igual, pero a otra velocidad. El click cae donde toca en la canción, y su sonido
     // no se estira: dura lo mismo y suena igual aunque la canción vaya lenta.
     pub fn muestra_en(&self, posicion: f64, velocidad: f64) -> f32 {
+        let posicion = posicion - self.inicio;
         if posicion < 0.0 {
             return 0.0;
         }
@@ -82,7 +85,7 @@ mod pruebas {
     #[test]
     fn no_se_corre_en_cinco_minutos() {
         let (bpm, rate) = (97.3f32, 48000u32);
-        let click = Click::new(bpm, 4, rate);
+        let click = Click::new(bpm, 4, rate, 0.0);
         let lista = inicios(&click, 300 * rate as u64);
 
         assert_eq!(lista.len(), (300.0 * bpm as f64 / 60.0).ceil() as usize);
@@ -90,6 +93,17 @@ mod pruebas {
             let ideal = numero as f64 * 60.0 / bpm as f64 * rate as f64;
             assert!((cuadro as f64 - ideal).abs() <= 2.0, "click {numero}");
         }
+    }
+
+    // Antes del inicio no suena nada, y el primer tiempo cae exacto en el inicio.
+    #[test]
+    fn empieza_en_el_punto_elegido() {
+        let click = Click::new(120.0, 4, 48000, 1.5);
+        let lista = inicios(&click, 48000 * 5);
+
+        assert_eq!(lista[0].abs_diff(72000), 1);
+        assert!(es_acento(&click, lista[0]));
+        assert_eq!(lista.len(), 7);
     }
 
     // Cuenta cruces por cero para saber qué tan agudo suena cada click.
@@ -102,7 +116,7 @@ mod pruebas {
     #[test]
     fn acentua_el_primer_tiempo_de_cada_compas() {
         for tiempos in [4u32, 3, 6, 12] {
-            let click = Click::new(120.0, tiempos, 48000);
+            let click = Click::new(120.0, tiempos, 48000, 0.0);
             let lista = inicios(&click, 48000 * 20);
             for (numero, &cuadro) in lista.iter().enumerate() {
                 let esperado = numero as u32 % tiempos == 0;

@@ -63,7 +63,7 @@ Un solo botón crea la secuencia; todo lo demás es revisar, editar, estudiar y 
 
 ## 3. Requerimientos funcionales
 
-Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** = importante. La fase indica en qué entrega entra (sección 14).
+Son 46 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** = importante. La fase indica en qué entrega entra (sección 14).
 
 **A. Canciones**
 
@@ -82,11 +82,11 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | RF-06 | Botón "Crear secuencia" que hace todo el proceso automático de una vez. | Alta | 1 |
 | RF-07 | Separar la canción en pistas: voz líder, coros, batería, bajo, piano, guitarra acústica, guitarra lead, guitarra rítmica, synth y otros. | Alta | 1 |
 | RF-08 | Detectar qué instrumentos suenan de verdad y ocultar las pistas vacías. Lo mismo aplica a la guitarra acústica y a la lead: si no están, no aparecen. | Alta | 1 |
-| RF-09 | Detectar BPM, compás, tiempos y primer tiempo de cada compás, incluso si el tempo cambia. | Alta | 1 |
+| RF-09 | El encargado define el BPM, el compás y dónde cae el primer tiempo; no se detectan solos. | Alta | 1 |
 | RF-10 | Detectar las secciones y nombrarlas: Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final. | Alta | 1 |
 | RF-11 | Numerar las secciones repetidas usando la letra: misma letra = mismo coro; letra nueva = Verso 2. | Alta | 1 |
 | RF-12 | Detectar acordes (C, G/B, Am7) y tonalidad (D, Em) de toda la canción. | Alta | 2 |
-| RF-13 | Generar automáticamente el click y la guía según las secciones detectadas. | Alta | 1 |
+| RF-13 | Generar el click desde lo que define el encargado, y la guía según las secciones. | Alta | 1 |
 | RF-14 | Mostrar un nivel de confianza por sección para saber dónde revisar primero. | Media | 2 |
 
 **C. Edición de la secuencia**
@@ -113,7 +113,6 @@ Son 47 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | RF-27 | Avisos libres en cualquier compás ("Solo piano", "Última vez", "Corte"). | Media | 1 |
 | RF-28 | Banco de frases editable: escribir el texto y la app genera la voz, o grabarla con micrófono. | Alta | 1 |
 | RF-29 | Click y guía suenan siempre en tiempo aunque se cambie la velocidad de práctica. | Alta | 1 |
-| RF-47 | El click sale solo del análisis de la canción; si se edita, un botón lo devuelve al original detectado. | Alta | 1 |
 
 **E. Estudio**
 
@@ -218,7 +217,7 @@ No hay que entrenar nada para empezar: se usan modelos ya entrenados, y un códi
 | --- | --- | --- | --- | --- |
 | 1 | Normalizar audio | FFmpeg | — | WAV 44.1 kHz estéreo |
 | 2 | Separar instrumentos | Cadena de modelos en la API de MVSep: BS Roformer SW, Karaoke, Acoustic Guitar, Lead/Rhythm Guitar y Synth | BS-RoFormer-SW en Modal, con una sola guitarra | Voz líder, coros, batería, bajo, piano, guitarra acústica, lead, rítmica, synth y otros |
-| 3 | Tiempos y compases | [Beat This!](https://arxiv.org/html/2407.21658v1) | All-In-One | Tiempos, primer tiempo de cada compás, BPM, compás |
+| 3 | Tiempos y compases | No se detectan: los define el encargado | — | BPM, compás e inicio del click |
 | 4 | Secciones con nombre | [SongFormer](https://arxiv.org/html/2510.02797) | [All-In-One](https://github.com/mir-aidj/all-in-one) | Secciones: intro, verso, pre-coro, coro, puente, instrumental, solo, outro |
 | 5 | Letra | faster-whisper sobre la pista de voz | — | Letra con tiempo por palabra |
 | 6 | Acordes | [BTC](https://github.com/jayg996/BTC-ISMIR19) (transformer, MIT, vocabulario grande con séptimas) | Se compara con otra opción en la Fase 0 | Acordes con inicio y fin |
@@ -673,7 +672,7 @@ Cada fase termina en una puerta: no se pasa a la siguiente hasta cumplirla.
 | Fase | Requerimientos |
 | --- | --- |
 | 0 · Pruebas | Ninguno de la lista: prototipos y mediciones (ver lista abajo) |
-| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-34, RF-40 a RF-45, RF-47 |
+| 1 · Secuencia | RF-01 a RF-11, RF-13, RF-15 a RF-18, RF-20 a RF-34, RF-40 a RF-45 |
 | 2 · Estudio | RF-12, RF-14, RF-19, RF-35 a RF-39 |
 | 3 · Después | RF-46, entrenar la IA con sus correcciones, versión Android |
 

@@ -24,9 +24,6 @@ function formatoTiempo(segundos: number) {
   return `${minutos}:${String(resto).padStart(2, "0")}`;
 }
 
-// En la app real estos valores salen del análisis de la canción.
-const CLICK_ORIGINAL = { bpm: 120, tiempos: 4 };
-
 function App() {
   const [carpeta, setCarpeta] = useState("");
   const [pistas, setPistas] = useState<Pista[]>([]);
@@ -34,8 +31,9 @@ function App() {
   const [estado, setEstado] = useState<Estado | null>(null);
   // Mientras se arrastra la barra guarda a dónde va; al soltar se hace el salto.
   const [arrastre, setArrastre] = useState<number | null>(null);
-  const [bpm, setBpm] = useState(CLICK_ORIGINAL.bpm);
-  const [tiempos, setTiempos] = useState(CLICK_ORIGINAL.tiempos);
+  const [bpm, setBpm] = useState(120);
+  const [tiempos, setTiempos] = useState(4);
+  const [inicio, setInicio] = useState(0);
   const [velocidad, setVelocidad] = useState(1);
   const [semitonos, setSemitonos] = useState(0);
   const [exportando, setExportando] = useState(false);
@@ -67,7 +65,7 @@ function App() {
       // El click va como una fila más, después de las pistas.
       setPistas([...filas, { nombre: "Click", volumen: 0.5, mute: false, solo: false }]);
       await invoke("volumen", { indice: nombres.length, valor: 0.5 });
-      await invoke("click", { bpm, tiempos });
+      await invoke("click", { bpm, tiempos, inicio });
       setVelocidad(1);
       setSemitonos(0);
     } catch (e) {
@@ -76,11 +74,12 @@ function App() {
     }
   }
 
-  function cambiarClick(nuevoBpm: number, nuevosTiempos: number) {
+  function cambiarClick(nuevoBpm: number, nuevosTiempos: number, nuevoInicio: number) {
     setBpm(nuevoBpm);
     setTiempos(nuevosTiempos);
+    setInicio(nuevoInicio);
     if (pistas.length > 0 && nuevoBpm > 0) {
-      ejecutar("click", { bpm: nuevoBpm, tiempos: nuevosTiempos });
+      ejecutar("click", { bpm: nuevoBpm, tiempos: nuevosTiempos, inicio: nuevoInicio });
     }
   }
 
@@ -179,21 +178,34 @@ function App() {
           min={30}
           max={300}
           value={bpm}
-          onChange={(e) => cambiarClick(Number(e.target.value), tiempos)}
+          onChange={(e) => cambiarClick(Number(e.target.value), tiempos, inicio)}
         />
         <label htmlFor="compas">Compás</label>
         <select
           id="compas"
           value={tiempos}
-          onChange={(e) => cambiarClick(bpm, Number(e.target.value))}
+          onChange={(e) => cambiarClick(bpm, Number(e.target.value), inicio)}
         >
           <option value={4}>4/4</option>
           <option value={3}>3/4</option>
           <option value={6}>6/8</option>
           <option value={12}>12/8</option>
         </select>
-        <button onClick={() => cambiarClick(CLICK_ORIGINAL.bpm, CLICK_ORIGINAL.tiempos)}>
-          Volver al original
+        <label htmlFor="inicio">Inicio (s)</label>
+        <input
+          id="inicio"
+          className="corto"
+          type="number"
+          min={0}
+          step={0.01}
+          value={inicio}
+          onChange={(e) => cambiarClick(bpm, tiempos, Number(e.target.value))}
+        />
+        <button
+          disabled={pistas.length === 0}
+          onClick={() => cambiarClick(bpm, tiempos, Math.round(posicion * 100) / 100)}
+        >
+          Marcar aquí
         </button>
       </div>
 
