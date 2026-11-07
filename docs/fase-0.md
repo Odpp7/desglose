@@ -56,9 +56,9 @@ Python 3.11 con **uv**. Cada etapa es un archivo independiente que se prueba sol
 - [x] **3a.** Proyecto con `uv init`, FFmpeg para normalizar el audio.
 - [x] **3b.** Separación con `audio-separator`: BS-RoFormer-SW vs Demucs `htdemucs_6s` → escuchar guitarra y piano. Ganó la cadena de MVSep a oído: 10 pistas en 5,7 minutos con Yo soy la ofrenda, gratis. Antes no convencieron Demucs, el modelo Mega de 53 pistas, restar pistas ni separar por posición estéreo.
 - [x] **3c.** Tiempos y compases: Beat This! dio unos 70 y 107 BPM, con errores de compás en varios tramos y sin poder decidir entre 70 y 140. Se descarta: el encargado define BPM, compás e inicio del click.
-- [ ] **3d.** Secciones: SongFormer vs All-In-One → comparar con lo que ustedes dirían a oído.
-- [ ] **3e.** Acordes: BTC → comparar con lo que tocan.
-- [ ] **3f.** Letra: faster-whisper sobre la pista de voz.
+- [x] **3d.** Secciones: SongFormer vs All-In-One → comparar con lo que ustedes dirían a oído. SongFormer corre en CPU de Modal por unos 2 centavos la canción y acierta en parte: sirve como propuesta que el encargado corrige. All-In-One no hizo falta.
+- [ ] **3e (en pausa, decisión del 2026-11-07).** Acordes: BTC → comparar con lo que tocan.
+- [ ] **3f (en pausa, decisión del 2026-11-07).** Letra: faster-whisper sobre la pista de voz.
 - [ ] **3g.** Formas de onda (picos por pista) y `analysis.json` con el formato de `docs/especificacion.md` (sección 8).
 - [ ] **3h.** Llevarlo a Modal: FastAPI + SSE para el avance + volumen temporal.
 - [ ] **Medir:** minutos de GPU y crédito de Modal por canción.

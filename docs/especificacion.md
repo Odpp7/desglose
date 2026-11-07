@@ -84,7 +84,7 @@ Son 46 requerimientos en 6 módulos. **Alta** = sin esto no hay app; **Media** =
 | RF-08 | Detectar qué instrumentos suenan de verdad y ocultar las pistas vacías. Lo mismo aplica a la guitarra acústica y a la lead: si no están, no aparecen. | Alta | 1 |
 | RF-09 | El encargado define el BPM, el compás y dónde cae el primer tiempo; no se detectan solos. | Alta | 1 |
 | RF-10 | Detectar las secciones y nombrarlas: Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final. | Alta | 1 |
-| RF-11 | Numerar las secciones repetidas usando la letra: misma letra = mismo coro; letra nueva = Verso 2. | Alta | 1 |
+| RF-11 | Numerar las secciones repetidas en orden: Verso 1, Verso 2, Coro 1, Coro 2. | Alta | 1 |
 | RF-12 | Detectar acordes (C, G/B, Am7) y tonalidad (D, Em) de toda la canción. | Alta | 2 |
 | RF-13 | Generar el click desde lo que define el encargado, y la guía según las secciones. | Alta | 1 |
 | RF-14 | Mostrar un nivel de confianza por sección para saber dónde revisar primero. | Media | 2 |
