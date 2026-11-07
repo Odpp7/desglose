@@ -50,6 +50,7 @@ La app se instala como un programa normal en **una sola PC que importa**: una **
 - **Cada etapa del backend es un archivo independiente** en `pipeline/`, que recibe archivos y devuelve archivos. Se debe poder probar sola.
 - Entregar **archivos completos**, no fragmentos sueltos.
 - **Commit al terminar cada paso que funcione**, con mensaje claro en español.
+- **Limpiar al avanzar.** `prototypes/` son pruebas, no la app: cada prototipo se borra cuando su código ya está en la app y probado (calendario en `docs/fase-1.md`, sección "Limpieza"). Antes de borrar, mover lo que no está en git (frases `.wav`, `.env`). Borrar también código y documentos que dejen de usarse.
 - Oscar es desarrollador frontend: domina React y TypeScript. **Rust y Python, explicarlos un poco más** (qué hace cada parte, en pocas líneas).
 
 ## Stack

@@ -26,6 +26,8 @@ Secuencia para alabanza, en este orden:
 
 Fuera por ahora: **acordes, letra, notas y tablatura**. Oscar decide después si entran. Cuando el proyecto hable de "estudio", por ahora solo incluye velocidad, tono y bucle.
 
+Los editores (click, secciones, voz guía, velocidad y tono) deben ser **fáciles para el encargado**: arrastrar sobre la línea de tiempo, botones rápidos y escuchar el resultado al momento.
+
 ## Dónde corre
 
 **Una sola PC importa**, la de la iglesia, y no hay acceso a ella hasta que la app esté lista:
@@ -63,14 +65,14 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | Paso | Al terminar se tiene |
 | --- | --- |
 | 1. Base | La app en `app/`, modo oscuro, pantallas y motor integrado |
-| 2. Biblioteca | Agregar, buscar y borrar canciones, con SQLite |
+| 2. Biblioteca | Agregar, buscar y borrar canciones, con SQLite. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
 | 3. Crear secuencia | Un botón separa en 10 pistas, con avance por etapa |
-| 4. Editor | Línea de tiempo con ondas, transporte y mezclador |
-| 5. Click | BPM, compás, inicio y conteo de entrada |
+| 4. Editor | Línea de tiempo con ondas, transporte y mezclador. "Añadir pista": un archivo propio (WAV, MP3 o FLAC) que se arrastra para alinearlo. Campo "Tono original", que escribe el encargado |
+| 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones | La IA propone; mover, renombrar, dividir, unir y borrar, con deshacer |
-| 7. Voz guía | Se coloca sola según las secciones, y se puede editar |
-| 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones |
-| 9. Estudio | Velocidad, tono y bucle |
+| 7. Voz guía | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |
+| 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
+| 9. Estudio | Velocidad (50% a 150%), tono y bucle |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
 
 Tras el paso 8 ya se puede usar una secuencia real en un culto.
@@ -82,7 +84,8 @@ Tras el paso 8 ya se puede usar una secuencia real en un culto.
 - **Click:** manual. El encargado define BPM, compás e inicio. La IA no lo detecta: Beat This! falló en tramos, y decidir entre 70 y 140 es musical.
 - **Secciones:** SongFormer propone, el encargado corrige. Se numeran en orden: Verso 1, Verso 2. Acierta solo en parte.
 - **Voz guía:** `es_MX-claude-high` de Piper. La app incluye las frases ya generadas (1,2 MB), no la voz completa (60 MB).
-- **Velocidad y tono:** solo para estudiar. El tono es prioridad alta.
+- **Velocidad y tono:** para estudiar y **también para exportar**. Al exportar, el click, las secciones, la voz guía y las regiones se reajustan solos; el click y la voz no cambian de tono. Rango para exportar: 80% a 120% y −4 a +4 semitonos, con aviso fuera de él. El paquete lleva el cambio en el nombre: `Hay Libertad (E, 105%)`. El tono es prioridad alta.
+- **Tonalidad:** la escribe el encargado. Al transponer se ve "D → E (+2)".
 - **Actualización automática:** obligatoria desde la primera versión instalada. La app busca al abrir y nunca actualiza a mitad de uso.
 
 ## Código que se reutiliza
@@ -103,6 +106,24 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 Las frases son `.wav`, que `.gitignore` ignora, y están en `out/`, que también se ignora. **Al moverlas a la app hay que agregar una excepción en `.gitignore`**, o no llegarán a git.
 
 Las pruebas que no sirvieron quedan en el historial de git como referencia: `probar_mega.py`, `paneo.py`, `ritmo.py` y `scripts/combinar.ps1`.
+
+## Limpieza
+
+`prototypes/` son pruebas, no la app. A medida que se avanza, **cada prototipo se borra cuando su código ya está en la app y probado**, en el mismo commit del paso. Todo queda en el historial de git.
+
+| Prototipo | Se borra al terminar |
+| --- | --- |
+| `prototypes/audio-engine/` | Paso 1 |
+| `prototypes/ai-pipeline/` | Paso 6 (MVSep pasa a Rust en el 3; SongFormer y el respaldo pasan a `backend/` en el 6) |
+| `prototypes/voice-piper/` | Paso 7 |
+| `prototypes/rpp-export/` | Paso 8 |
+
+Cuidado antes de borrar: hay cosas que **no están en git** y se perderían para siempre:
+
+- Las 34 frases de `prototypes/voice-piper/out/` (los `.wav` se ignoran). Moverlas a la app primero.
+- La clave de MVSep en `prototypes/ai-pipeline/.env`. Moverla a donde se decida en el paso 3.
+
+También se borra lo que deje de usarse dentro de la app y los documentos que queden viejos (por ejemplo `docs/fase-0.md`, cuando ya no sirva de referencia). `samples/` se queda: son las canciones de prueba y no se suben a git.
 
 ## Lo aprendido
 
@@ -148,7 +169,6 @@ Las pruebas que no sirvieron quedan en el historial de git como referencia: `pro
 
 - **Secuencia del encargado:** antes del paso 8, para copiar su formato. Pasa la prueba cuando él diga "esto es como lo que uso".
 - **Frecuencia de exportación:** las pistas salen a 44.1 kHz y la especificación pide 48 kHz por defecto. Se decide al ver la secuencia del encargado.
-- **Exportar en otro tono:** la especificación dice que siempre sale original. Oscar debe decidir si también se exporta transpuesto.
 - **Frases nuevas de la voz guía:** grabarlas con micrófono o bajar la voz completa.
 - **Respaldo y límites:** qué ve el encargado si MVSep falla o sin internet.
 - **Actualización automática:** el repositorio es público, y GitHub Releases sirve. Guardar bien la clave de firma.

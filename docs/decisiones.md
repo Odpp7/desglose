@@ -53,5 +53,9 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-06: la PC de referencia pasa a ser la real: HP Laptop 15-db0xxx, AMD A9-9425 (2 núcleos), 8 GB de RAM, SSD y Radeon R5 integrada. Reemplaza al supuesto de 4 GB. La IA sigue en la nube, porque el procesador no da para correrla. 
 - 2026-11-06: solo importa la PC de la iglesia, ya no se diseña para otras PCs. La meta de memoria sube de 400 MB a 1 GB, porque esa PC tiene 8 GB. Sigue vigente leer las pistas desde el disco. El límite real de esa PC es el procesador.
 - 2026-11-05: el instalador (1h) y la actualización automática (1i) se dejan para cuando la app real esté terminada, antes de repartirla. Salen de la Puerta 1. La actualización sigue siendo obligatoria en la primera versión que se reparta.
+- 2026-11-07: velocidad y tono **también se exportan**, no son solo para estudiar. Motivo: el equipo a veces toca la canción en otro tono o más rápida. El click, las secciones, la voz guía y las regiones del `.RPP` se reajustan solos al nuevo tempo; el click y la voz nunca cambian de tono. Rango propuesto para exportar: 80% a 120% y −4 a +4 semitonos, con aviso fuera de él (para estudiar, 50% a 150%). El paquete lleva el cambio en el nombre, por ejemplo `Hay Libertad (E, 105%)`. Reemplaza "la exportación siempre sale original".
+- 2026-11-07: la tonalidad la escribe el encargado; la IA no la detecta. Al transponer, la app muestra el tono nuevo ("D → E (+2)").
+- 2026-11-07: se suman a la Fase 1: colecciones en la biblioteca, añadir un instrumento propio (un archivo) como pista, "tocar el tempo" para el click, voz guía editable (mover, cambiar, borrar, añadir) y voz guía propia (grabada o cargada).
+- 2026-11-07: el proyecto se limpia a medida que se avanza: cada prototipo se borra cuando su código ya está en la app y probado. Queda en el historial de git.
 
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.
