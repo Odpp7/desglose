@@ -31,7 +31,12 @@ pub fn cargar_carpeta(carpeta: String, motor: State<'_, Motor>) -> Result<Vec<St
     motor.cargar(&rutas)?;
     Ok(rutas
         .iter()
-        .map(|ruta| ruta.file_name().unwrap_or_default().to_string_lossy().into_owned())
+        .map(|ruta| {
+            ruta.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect())
 }
 

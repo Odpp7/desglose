@@ -2,8 +2,8 @@
 // Usa el mismo Mezclador que la reproducción: lo que se escucha es lo que se exporta.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -21,7 +21,10 @@ pub fn exportar(rutas: &[PathBuf], controles: Compartido, destino: &Path) -> Res
         .iter()
         .map(|ruta| track::abrir(ruta))
         .collect::<Result<Vec<_>, _>>()?;
-    let rate = lectores.first().ok_or("No hay pistas para exportar")?.rate();
+    let rate = lectores
+        .first()
+        .ok_or("No hay pistas para exportar")?
+        .rate();
 
     let archivo = WavWriter::create(
         destino,

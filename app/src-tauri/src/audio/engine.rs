@@ -58,17 +58,18 @@ pub(super) struct Compartido {
     callando: AtomicBool, // baja todo a cero antes de un salto, para que no suene un golpe
     cortes: AtomicU64,
     cuadros_sonados: AtomicU64, // el reloj: cuadros que ya salieron desde el último salto
-    bpm: AtomicU32, // f32 guardado como bits, igual que el volumen
+    bpm: AtomicU32,             // f32 guardado como bits, igual que el volumen
     tiempos_por_compas: AtomicU32,
     inicio_click: AtomicU32, // f32 como bits: segundo donde cae el primer tiempo
-    velocidad: AtomicU32, // f32 como bits; 1 = normal. Es solo para estudiar, no se exporta
-    semitonos: AtomicU32, // f32 como bits; 0 = tono original. Tampoco se exporta
+    velocidad: AtomicU32,    // f32 como bits; 1 = normal. Es solo para estudiar, no se exporta
+    semitonos: AtomicU32,    // f32 como bits; 0 = tono original. Tampoco se exporta
     pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click
 }
 
 impl Compartido {
     pub(super) fn new(total_pistas: usize) -> Self {
-        let mut pistas: Vec<ControlPista> = (0..total_pistas).map(|_| ControlPista::new()).collect();
+        let mut pistas: Vec<ControlPista> =
+            (0..total_pistas).map(|_| ControlPista::new()).collect();
         let click = ControlPista::new();
         click.volumen.store(0.0f32.to_bits(), Ordering::Relaxed);
         pistas.push(click);
@@ -287,7 +288,9 @@ impl Motor {
             (sesion.rutas.clone(), sesion.compartido.copiar_controles())
         };
 
-        let carpeta = rutas[0].parent().ok_or("La carpeta de las pistas no es válida")?;
+        let carpeta = rutas[0]
+            .parent()
+            .ok_or("La carpeta de las pistas no es válida")?;
         let nombre = carpeta.file_name().unwrap_or_default().to_string_lossy();
         let destino = carpeta.with_file_name(format!("{nombre}-mezcla.wav"));
 
@@ -362,7 +365,7 @@ pub(super) struct Mezclador {
     estirador: Estirador,
     velocidad: f32,
     en_estudio: bool, // true cuando hay que pasar por el estirador
-    resto: f64, // fracción de cuadro que quedó del bloque anterior
+    resto: f64,       // fracción de cuadro que quedó del bloque anterior
 }
 
 impl Mezclador {
@@ -448,7 +451,9 @@ impl Mezclador {
 
         if !quedan_pistas {
             // Todos los lectores terminaron y no queda audio: la canción acabó.
-            self.compartido.reproduciendo.store(false, Ordering::Relaxed);
+            self.compartido
+                .reproduciendo
+                .store(false, Ordering::Relaxed);
             self.compartido.terminado.store(true, Ordering::Relaxed);
             return Some((0.0, 0.0));
         }
@@ -457,7 +462,8 @@ impl Mezclador {
         let mut derecha = 0.0;
         for (indice, cola) in self.colas.iter_mut().enumerate() {
             let ganancia = &mut self.ganancias[indice];
-            *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
+            *ganancia +=
+                (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
 
             if cola.slots() >= 2 {
                 izquierda += cola.pop().unwrap_or(0.0) * *ganancia;
@@ -581,7 +587,10 @@ fn esperar_audio(colas: &[Consumer<f32>], rate: u32) {
     let limite = Instant::now() + Duration::from_secs(2);
 
     while Instant::now() < limite {
-        if colas.iter().all(|c| c.slots() >= minimo || c.is_abandoned()) {
+        if colas
+            .iter()
+            .all(|c| c.slots() >= minimo || c.is_abandoned())
+        {
             return;
         }
         thread::sleep(Duration::from_millis(2));
@@ -695,9 +704,17 @@ mod pruebas {
         let parar_lector = parar.clone();
         let hilo = thread::spawn(move || lector.leer(inicio, rate, productor, parar_lector));
 
-        let (pista, click) = if escuchar_generado { (0.0f32, 1.0f32) } else { (1.0, 0.0) };
-        compartido.pistas[0].volumen.store(pista.to_bits(), Ordering::Relaxed);
-        compartido.pistas[1].volumen.store(click.to_bits(), Ordering::Relaxed);
+        let (pista, click) = if escuchar_generado {
+            (0.0f32, 1.0f32)
+        } else {
+            (1.0, 0.0)
+        };
+        compartido.pistas[0]
+            .volumen
+            .store(pista.to_bits(), Ordering::Relaxed);
+        compartido.pistas[1]
+            .volumen
+            .store(click.to_bits(), Ordering::Relaxed);
 
         let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, inicio);
         // Las ganancias arrancan ya en su valor para no perder el primer click en la rampa.
@@ -743,7 +760,10 @@ mod pruebas {
             .map(|(a, b)| a.abs_diff(*b))
             .max()
             .unwrap();
-        println!("inicio {inicio}: {} clicks, diferencia máxima {mayor} cuadros", pista.len());
+        println!(
+            "inicio {inicio}: {} clicks, diferencia máxima {mayor} cuadros",
+            pista.len()
+        );
         assert!(mayor <= 8);
     }
 
@@ -765,7 +785,11 @@ mod pruebas {
         let mut bloque = vec![0.0f32; 960];
         while (salida.len() as f64) < segundos * rate as f64 {
             // La prueba corre más rápido que el disco: espera a que haya audio de sobra.
-            while mezclador.colas.iter().any(|c| c.slots() < 4000 && !c.is_abandoned()) {
+            while mezclador
+                .colas
+                .iter()
+                .any(|c| c.slots() < 4000 && !c.is_abandoned())
+            {
                 thread::yield_now();
             }
             mezclador.escribir(&mut bloque, 2);
@@ -801,7 +825,11 @@ mod pruebas {
         let parar_lector = parar.clone();
         let hilo = thread::spawn(move || lector.leer(0.0, rate, productor, parar_lector));
 
-        let (pista, click) = if escuchar_generado { (0.0f32, 1.0f32) } else { (1.0, 0.0) };
+        let (pista, click) = if escuchar_generado {
+            (0.0f32, 1.0f32)
+        } else {
+            (1.0, 0.0)
+        };
         compartido.fijar_volumen(0, pista);
         compartido.fijar_volumen(1, click);
         compartido.fijar_estudio(velocidad, 0.0);
@@ -840,7 +868,10 @@ mod pruebas {
                 mayor = mayor.max(cercano);
             }
             let milisegundos = mayor / rate * 1000.0;
-            println!("velocidad {velocidad}: {} clicks, mayor diferencia {milisegundos:.1} ms", pista.len());
+            println!(
+                "velocidad {velocidad}: {} clicks, mayor diferencia {milisegundos:.1} ms",
+                pista.len()
+            );
             assert!(pista.len() > 20);
             assert!(milisegundos < 15.0);
         }
@@ -854,7 +885,8 @@ mod pruebas {
 
         let (mut productor, consumidor) = RingBuffer::<f32>::new(rate as usize * 2 * 8);
         for cuadro in 0..rate as usize * 8 {
-            let muestra = (std::f64::consts::TAU * 440.0 * cuadro as f64 / rate as f64).sin() as f32;
+            let muestra =
+                (std::f64::consts::TAU * 440.0 * cuadro as f64 / rate as f64).sin() as f32;
             productor.push(muestra * 0.5).unwrap();
             productor.push(muestra * 0.5).unwrap();
         }
@@ -913,8 +945,12 @@ mod pruebas {
             *bloque.last().unwrap()
         };
 
-        compartido.pistas[0].volumen.store(0.25f32.to_bits(), Ordering::Relaxed);
-        compartido.pistas[1].volumen.store(0.5f32.to_bits(), Ordering::Relaxed);
+        compartido.pistas[0]
+            .volumen
+            .store(0.25f32.to_bits(), Ordering::Relaxed);
+        compartido.pistas[1]
+            .volumen
+            .store(0.5f32.to_bits(), Ordering::Relaxed);
         assert_eq!(medir(&mut mezclador), 0.75);
 
         compartido.pistas[1].mute.store(true, Ordering::Relaxed);

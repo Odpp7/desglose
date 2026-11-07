@@ -3,8 +3,8 @@
 
 use std::fs::File;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -160,7 +160,13 @@ impl Lector {
                 pendiente.push(if canales > 1 { cuadro[1] } else { cuadro[0] });
             }
 
-            if !enviar(&mut pendiente, conversor.as_mut(), &mut restantes, &mut cola, &parar) {
+            if !enviar(
+                &mut pendiente,
+                conversor.as_mut(),
+                &mut restantes,
+                &mut cola,
+                &parar,
+            ) {
                 return;
             }
         }
@@ -168,7 +174,13 @@ impl Lector {
         // El resampler guarda audio por dentro; este silencio final empuja lo último que le queda.
         if conversor.is_some() {
             pendiente.resize(pendiente.len() + BLOQUE * 4, 0.0);
-            enviar(&mut pendiente, conversor.as_mut(), &mut restantes, &mut cola, &parar);
+            enviar(
+                &mut pendiente,
+                conversor.as_mut(),
+                &mut restantes,
+                &mut cola,
+                &parar,
+            );
         }
         // Al terminar, `cola` se destruye y la salida de audio sabe que la pista acabó.
     }
@@ -234,7 +246,12 @@ fn enviar(
 
         let saltar = conversor.recortar.min(escritos);
         conversor.recortar -= saltar;
-        if !empujar(&conversor.salida[saltar * 2..escritos * 2], restantes, cola, parar) {
+        if !empujar(
+            &conversor.salida[saltar * 2..escritos * 2],
+            restantes,
+            cola,
+            parar,
+        ) {
             return false;
         }
         pendiente.drain(..cuadros * 2);
@@ -309,12 +326,19 @@ mod pruebas {
         assert_eq!(clicks.len(), total_clicks);
 
         let esperado = (primer_click * rate as f64) as usize;
-        assert!(clicks[0].abs_diff(esperado) <= 8, "primer click en {}", clicks[0]);
+        assert!(
+            clicks[0].abs_diff(esperado) <= 8,
+            "primer click en {}",
+            clicks[0]
+        );
 
         let medio_segundo = rate as usize / 2;
         for par in clicks.windows(2) {
             let distancia = par[1] - par[0];
-            assert!(distancia.abs_diff(medio_segundo) <= 2, "distancia {distancia}");
+            assert!(
+                distancia.abs_diff(medio_segundo) <= 2,
+                "distancia {distancia}"
+            );
         }
     }
 

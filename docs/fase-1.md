@@ -65,7 +65,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | Paso | Al terminar se tiene |
 | --- | --- |
 | 1. Base ✅ | La app en `app/`, modo oscuro, pantallas y motor integrado |
-| 2. Biblioteca | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
+| 2. Biblioteca ✅ | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
 | 3. Crear secuencia | Un botón separa en 10 pistas, con avance por etapa |
 | 4. Editor | Línea de tiempo con ondas, transporte y mezclador. "Añadir pista": un archivo propio (WAV, MP3 o FLAC) que se arrastra para alinearlo. Campo "Tono original", que escribe el encargado |
 | 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
