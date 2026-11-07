@@ -11,9 +11,15 @@
 // completa. Con la fila llena (400 trabajos) un trabajo puede esperar más de una hora.
 // Por eso el código de cada trabajo se guarda en el disco: si la app se cierra
 // mientras espera, al reintentar sigue esperando el MISMO trabajo, sin perder el lugar.
+//
+// Cancelar: la interfaz enciende una señal (`cancelar`). Mientras espera en la fila,
+// el cliente la revisa cada cuarto de segundo; al verla, le pide a MVSep que cancele
+// el trabajo (si no empezó a procesarse, no cuenta) y termina con `CANCELADA`.
 
 use std::fs::{self, File};
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -53,16 +59,58 @@ pub struct Fila {
 pub struct Cliente {
     http: Client,
     clave: String,
+    /// Se enciende cuando el encargado pulsa "Cancelar".
+    cancelar: Arc<AtomicBool>,
 }
 
+/// El error con que termina una separación cancelada.
+pub const CANCELADA: &str = "Separación cancelada.";
+
 impl Cliente {
-    pub fn new(clave: String) -> Result<Self, String> {
+    pub fn new(clave: String, cancelar: Arc<AtomicBool>) -> Result<Self, String> {
         let http = Client::builder()
             // Subir o bajar una canción con internet lento puede tardar varios minutos.
             .timeout(Duration::from_secs(15 * 60))
             .build()
             .map_err(|e| format!("No se pudo preparar la conexión: {e}"))?;
-        Ok(Self { http, clave })
+        Ok(Self {
+            http,
+            clave,
+            cancelar,
+        })
+    }
+
+    /// Si se pidió cancelar, termina aquí.
+    fn revisar(&self) -> Result<(), String> {
+        if self.cancelar.load(Ordering::Relaxed) {
+            Err(CANCELADA.into())
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Espera 15 s entre consultas, pero revisando cada cuarto de segundo si se
+    /// canceló: así "Cancelar" responde enseguida.
+    fn dormir(&self) -> Result<(), String> {
+        let pasos = (ESPERA_ENTRE_CONSULTAS.as_millis() / 250) as u32;
+        for _ in 0..pasos {
+            self.revisar()?;
+            thread::sleep(Duration::from_millis(250));
+        }
+        self.revisar()
+    }
+
+    /// Le pide a MVSep que cancele el trabajo. Si falla no importa: igual se descarta.
+    fn cancelar_en_mvsep(&self, hash: &str) {
+        let formulario = Form::new()
+            .text("api_token", self.clave.clone())
+            .text("hash", hash.to_string());
+        let _ = self
+            .http
+            .post(format!("{SITIO}/separation/cancel"))
+            .multipart(formulario)
+            .timeout(Duration::from_secs(30))
+            .send();
     }
 
     /// Separa `entrada` con `modelo` y deja las pistas en la carpeta `destino`.
@@ -85,6 +133,7 @@ impl Cliente {
                 guardado.trim().to_string()
             }
             _ => {
+                self.revisar()?;
                 avisar("Subiendo la canción".into());
                 let nuevo = match self.crear_trabajo(entrada, modelo) {
                     Ok(nuevo) => nuevo,
@@ -107,8 +156,11 @@ impl Cliente {
         let archivos = match self.esperar(&hash, avisar) {
             Ok(archivos) => archivos,
             Err(error) => {
-                // Si MVSep ya no conoce ese trabajo o falló, el próximo intento crea uno nuevo.
-                // Si fue un corte de internet, el código se conserva para retomarlo.
+                if error == CANCELADA {
+                    self.cancelar_en_mvsep(&hash);
+                }
+                // Si MVSep ya no conoce ese trabajo, falló o se canceló, el próximo intento
+                // crea uno nuevo. Si fue un corte de internet, el código se conserva.
                 if !error.starts_with(SIN_CONEXION) {
                     let _ = fs::remove_file(&archivo_codigo);
                 }
@@ -123,7 +175,10 @@ impl Cliente {
         }
         fs::create_dir_all(&temporal).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
         for archivo in &archivos {
-            self.bajar(archivo, &temporal)?;
+            if let Err(error) = self.revisar().and_then(|_| self.bajar(archivo, &temporal)) {
+                let _ = fs::remove_dir_all(&temporal);
+                return Err(error);
+            }
         }
         // Si se adoptó un trabajo que resultó ser otro, sus pistas no coinciden:
         // se descarta y el próximo intento crea uno nuevo.
@@ -248,7 +303,7 @@ impl Cliente {
                         return Err(error);
                     }
                     avisar("Sin conexión, reintentando…".into());
-                    thread::sleep(ESPERA_ENTRE_CONSULTAS);
+                    self.dormir()?;
                     continue;
                 }
             };
@@ -268,7 +323,7 @@ impl Cliente {
                 "waiting" => avisar(self.texto_fila(datos)),
                 _ => avisar("MVSep está separando".into()),
             }
-            thread::sleep(ESPERA_ENTRE_CONSULTAS);
+            self.dormir()?;
         }
         Err("MVSep tardó más de 4 horas. Reintenta más tarde: se retoma el mismo trabajo.".into())
     }
@@ -365,4 +420,21 @@ fn campo<'a>(json: &'a Value, nombre: &str) -> Option<&'a Value> {
     json.get(nombre)
         .or_else(|| json.get("data").and_then(|d| d.get(nombre)))
         .filter(|v| !v.is_null())
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn cancelar_corta_la_espera_enseguida() {
+        let senal = Arc::new(AtomicBool::new(false));
+        let cliente = Cliente::new("clave-de-prueba".into(), senal.clone()).unwrap();
+        assert!(cliente.revisar().is_ok());
+
+        senal.store(true, Ordering::Relaxed);
+        let inicio = Instant::now();
+        assert_eq!(cliente.dormir(), Err(CANCELADA.to_string()));
+        assert!(inicio.elapsed() < Duration::from_secs(1), "debe cortar enseguida");
+    }
 }

@@ -67,7 +67,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 1. Base ✅ | La app en `app/`, modo oscuro, pantallas y motor integrado |
 | 2. Biblioteca ✅ | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
 | 3. Crear secuencia ✅ | Un botón separa en 6 pistas con 1 trabajo de MVSep, con avance y espera estimada. Botones opcionales aparte: voz líder y coros, guitarras, synth |
-| 4. Editor | Línea de tiempo con ondas, transporte y mezclador. "Añadir pista": un archivo propio (WAV, MP3 o FLAC) que se arrastra para alinearlo. Campo "Tono original", que escribe el encargado |
+| 4. Editor (4a ✅) | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" por pista, "Añadir pista" (un archivo propio que se arrastra para alinearlo) y "Tono original", que escribe el encargado |
 | 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones | La IA propone; mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |

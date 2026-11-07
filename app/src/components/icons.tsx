@@ -91,6 +91,18 @@ export const IconoAtras = (p: Props) => (
   </Trazo>
 );
 
+export const IconoFlecha = (p: Props) => (
+  <Trazo {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Trazo>
+);
+
+export const IconoPanel = (p: Props) => (
+  <Trazo {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </Trazo>
+);
+
 export function IconoPuntos({ size = 18 }: Props) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

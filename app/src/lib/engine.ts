@@ -18,9 +18,19 @@ export type EstadoMotor = {
   duracion: number;
 };
 
+/** Una pista como la tiene el motor. Su posición en la lista es su índice. */
+export type PistaMotor = { instrumento: string; archivo: string; vacia: boolean };
+
 export const motor = {
-  /** Abre todos los FLAC y WAV de una carpeta. Devuelve sus nombres en orden. */
-  cargarCarpeta: (carpeta: string) => invoke<string[]>("cargar_carpeta", { carpeta }),
+  /**
+   * Carga las pistas de una canción. Si ya estaban cargadas (al volver al editor)
+   * no hace nada y devuelve `yaEstaba: true`: el motor sigue en el mismo punto.
+   */
+  cargarCancion: (id: number, forzar = false) =>
+    invoke<{ pistas: PistaMotor[]; yaEstaba: boolean }>("cargar_cancion", { id, forzar }),
+  /** Forma de onda de una pista: 100 valores por segundo, de 0 a 255. */
+  ondas: async (id: number, instrumento: string) =>
+    new Uint8Array(await invoke<ArrayBuffer>("ondas_pista", { id, instrumento })),
   play: () => invoke<void>("play"),
   pausa: () => invoke<void>("pausa"),
   buscar: (segundos: number) => invoke<void>("buscar", { segundos }),

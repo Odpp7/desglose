@@ -10,6 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 use audio::engine::Motor;
+use commands::CancionCargada;
 use secuencia::Separacion;
 use tauri::{Emitter, Manager};
 
@@ -24,6 +25,7 @@ pub fn run() {
         )
         .manage(Motor::default())
         .manage(Separacion::default())
+        .manage(CancionCargada::default())
         .setup(|app| {
             // Avisa a la interfaz la posición y el estado unas 30 veces por segundo.
             let app = app.handle().clone();
@@ -36,7 +38,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::cargar_carpeta,
+            commands::cargar_cancion,
+            commands::ondas_pista,
             commands::play,
             commands::pausa,
             commands::buscar,
@@ -48,11 +51,11 @@ pub fn run() {
             commands::solo,
             biblioteca::copiar_cancion,
             biblioteca::borrar_cancion,
-            biblioteca::carpeta_pistas,
             ajustes::guardar_clave_mvsep,
             ajustes::hay_clave_mvsep,
             secuencia::crear_secuencia,
             secuencia::secuencia_en_curso,
+            secuencia::cancelar_secuencia,
             secuencia::fila_mvsep,
             secuencia::pistas_guardadas
         ])

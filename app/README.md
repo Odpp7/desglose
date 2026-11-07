@@ -5,17 +5,24 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
 ## Partes
 
 - `src/`: interfaz en React. Solo dibuja y manda órdenes.
-  - `app/`: rutas y el marco con la barra lateral.
-  - `features/`: una carpeta por pantalla (biblioteca, canción, editor, ajustes).
-  - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto).
-  - `lib/engine.ts`: las órdenes al motor de audio.
+  - `app/`: rutas y el marco: barra fina, biblioteca a la izquierda, canción a la derecha.
+  - `features/library/`: la biblioteca (carpetas, canciones, agregar y arrastrar).
+  - `features/song/`: la canción abierta (botones Separar, datos, crear secuencia).
+  - `features/editor/`: pistas, ondas, mezclador y transporte.
+  - `features/settings/`: Ajustes (la clave de MVSep).
+  - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto, estado).
+  - `lib/engine.ts`: las órdenes al motor de audio (cargar canción, ondas, play...).
   - `lib/db.ts`: las consultas a SQLite.
-  - `lib/archivos.ts`: copiar y borrar el audio de cada canción.
+  - `lib/secuencia.ts`: separar con MVSep, su avance y cancelar.
+  - `lib/sesion.ts`, `lib/cambios.ts`: última canción, mezcla y aviso de cambios.
 - `src-tauri/`: el motor en Rust.
   - `src/audio/`: reloj, lectura de pistas desde el disco, click, velocidad y tono, exportación.
   - `src/commands.rs`: las órdenes del motor que llama la interfaz.
   - `src/db.rs`: las tablas de SQLite.
   - `src/biblioteca.rs`: copiar una canción a su carpeta, medir su duración y borrarla.
+  - `src/mvsep.rs`, `src/secuencia.rs`: separar con MVSep por partes, retomar y cancelar.
+  - `src/audio/nivel.rs`, `src/audio/ondas.rs`: pistas vacías y formas de onda.
+  - `src/ajustes.rs`: la clave de MVSep.
 
 ## Dónde guarda las cosas
 

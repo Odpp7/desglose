@@ -45,8 +45,10 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   color-scheme: dark;
-  /* Es una app, no una página: el texto no se selecciona al hacer clic. */
+  /* Es una app, no una página: el texto no se selecciona al hacer clic,
+     y la ventana completa nunca se desplaza (solo sus partes). */
   user-select: none;
+  overflow: hidden;
 }
 
 input,

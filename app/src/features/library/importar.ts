@@ -7,13 +7,13 @@
 import { FORMATOS, borrarCarpetaCancion, copiarCancion, extension, nombreArchivo, sinExtension } from "../../lib/archivos";
 import { borrarCancion, crearCancion, guardarArchivo } from "../../lib/db";
 
-export type ResultadoImportar = { agregadas: number; errores: string[] };
+export type ResultadoImportar = { agregadas: number[]; errores: string[] };
 
 export async function importarCanciones(
   rutas: string[],
   coleccionId: number | null,
 ): Promise<ResultadoImportar> {
-  const resultado: ResultadoImportar = { agregadas: 0, errores: [] };
+  const resultado: ResultadoImportar = { agregadas: [], errores: [] };
 
   // Una por una: la PC de la iglesia tiene 2 núcleos y el disco es uno solo.
   for (const ruta of rutas) {
@@ -27,7 +27,7 @@ export async function importarCanciones(
     try {
       const copia = await copiarCancion(id, ruta);
       await guardarArchivo(id, copia.archivo, copia.duracionMs);
-      resultado.agregadas++;
+      resultado.agregadas.push(id);
     } catch (e) {
       await borrarCancion(id);
       await borrarCarpetaCancion(id).catch(() => {});

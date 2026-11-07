@@ -11,22 +11,40 @@ type Props = {
 };
 
 export function Menu({ etiqueta, children }: Props) {
-  const [abierto, setAbierto] = useState(false);
+  // `posicion` guarda dónde dibujar la lista (debajo del botón, alineada a su derecha).
+  // Se dibuja con `position: fixed` para que no la recorte una lista con desplazamiento.
+  const [posicion, setPosicion] = useState<{ top: number; right: number } | null>(null);
+  const abierto = posicion !== null;
   const caja = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!abierto) return;
+    const cerrar = () => setPosicion(null);
     const alClicAfuera = (e: MouseEvent) => {
-      if (!caja.current?.contains(e.target as Node)) setAbierto(false);
+      if (!caja.current?.contains(e.target as Node)) cerrar();
     };
-    const alTecla = (e: KeyboardEvent) => e.key === "Escape" && setAbierto(false);
+    const alTecla = (e: KeyboardEvent) => e.key === "Escape" && cerrar();
     document.addEventListener("mousedown", alClicAfuera);
     document.addEventListener("keydown", alTecla);
+    // Si algo se desplaza o cambia de tamaño, la lista quedaría fuera de lugar: se cierra.
+    const alDesplazar = (e: Event) => {
+      if (!caja.current?.contains(e.target as Node)) cerrar();
+    };
+    window.addEventListener("resize", cerrar);
+    document.addEventListener("scroll", alDesplazar, true);
     return () => {
       document.removeEventListener("mousedown", alClicAfuera);
       document.removeEventListener("keydown", alTecla);
+      window.removeEventListener("resize", cerrar);
+      document.removeEventListener("scroll", alDesplazar, true);
     };
   }, [abierto]);
+
+  function alternar(e: React.MouseEvent<HTMLButtonElement>) {
+    if (abierto) return setPosicion(null);
+    const r = e.currentTarget.getBoundingClientRect();
+    setPosicion({ top: r.bottom + 4, right: window.innerWidth - r.right });
+  }
 
   return (
     // stopPropagation: el clic en el menú no debe abrir la fila que lo contiene.
@@ -34,19 +52,20 @@ export function Menu({ etiqueta, children }: Props) {
       <button
         aria-label={etiqueta}
         aria-expanded={abierto}
-        onClick={() => setAbierto((a) => !a)}
+        onClick={alternar}
         className={`grid size-7 place-items-center rounded-md hover:bg-ink-3 hover:text-fg ${
           abierto ? "bg-ink-3 text-fg" : "text-fg-3"
         }`}
       >
         <IconoPuntos size={16} />
       </button>
-      {abierto && (
+      {posicion && (
         <div
           role="menu"
-          className="absolute top-full right-0 z-20 mt-1 min-w-48 rounded-[10px] border border-line-2 bg-ink-2 p-1 shadow-xl shadow-black/40"
+          style={posicion}
+          className="fixed z-50 max-h-[60vh] min-w-48 overflow-y-auto rounded-[10px] border border-line-2 bg-ink-2 p-1 shadow-xl shadow-black/40"
         >
-          {children(() => setAbierto(false))}
+          {children(() => setPosicion(null))}
         </div>
       )}
     </div>

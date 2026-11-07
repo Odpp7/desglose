@@ -22,6 +22,7 @@
 import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { avisarCambio } from "./cambios";
 import { cambiarEstado, guardarPistas, listarCanciones, listarPistas } from "./db";
 
 export type Modo = "base" | "voces" | "guitarras" | "synth";
@@ -47,11 +48,9 @@ export type Fila = {
 type EventoAvance = { cancionId: number; etapas: string[]; etapa: number; detalle: string };
 /** Una pista como la describe Rust (también es lo que guarda en `pistas/lista.json`). */
 type PistaRust = { instrumento: string; archivo: string; vacia: boolean };
-type EventoFin = { cancionId: number; pistas: PistaRust[] | null; error: string | null };
+type EventoFin = { cancionId: number; pistas: PistaRust[] | null; error: string | null; cancelada: boolean };
 
 const avances = new Map<number, Avance>();
-/** Sube cada vez que una secuencia termina o falla: las listas se recargan. */
-let version = 0;
 const oyentes = new Set<() => void>();
 
 function notificar() {
@@ -70,9 +69,16 @@ export function useAvance(cancionId: number) {
   return useSyncExternalStore(suscribir, () => avances.get(cancionId));
 }
 
-/** Cambia cuando alguna secuencia termina: úsalo como dependencia para recargar. */
-export function useVersionSecuencias() {
-  return useSyncExternalStore(suscribir, () => version);
+/** Cambia cuando algo cambia en la biblioteca (por ejemplo, termina una separación). */
+export { useVersion as useVersionSecuencias } from "./cambios";
+
+/**
+ * Cancela la separación en curso. La app le avisa a MVSep y borra lo que quedó
+ * a medias. Si era la separación base, la canción vuelve a "Sin secuencia";
+ * si era una opcional, la canción sigue con las pistas que ya tenía.
+ */
+export function cancelarSecuencia() {
+  return invoke<void>("cancelar_secuencia");
 }
 
 export function filaMvsep() {
@@ -87,8 +93,8 @@ export function filaMvsep() {
 export async function crearSecuencia(cancionId: number, modo: Modo = "base") {
   if (modo === "base") await cambiarEstado(cancionId, "separando");
   avances.set(cancionId, { modo, etapas: [], etapa: 0, detalle: "Empezando", desde: Date.now() });
-  version++;
   notificar();
+  avisarCambio();
   try {
     await invoke("crear_secuencia", { id: cancionId, modo });
   } catch (e) {
@@ -100,8 +106,8 @@ async function terminarConError(cancionId: number, error: string) {
   const modo = avances.get(cancionId)?.modo ?? "base";
   avances.delete(cancionId);
   await cambiarEstado(cancionId, modo === "base" ? "error" : "lista", error);
-  version++;
   notificar();
+  avisarCambio();
 }
 
 let iniciado = false;
@@ -125,6 +131,14 @@ export async function iniciarSecuencias() {
 
   await listen<EventoFin>("secuencia-fin", async ({ payload }) => {
     const id = payload.cancionId;
+    if (payload.cancelada) {
+      const modo = avances.get(id)?.modo ?? "base";
+      avances.delete(id);
+      await cambiarEstado(id, modo === "base" ? "nueva" : "lista");
+      notificar();
+      avisarCambio();
+      return;
+    }
     if (!payload.pistas) {
       await terminarConError(id, payload.error ?? "Falló sin explicación");
       return;
@@ -132,13 +146,13 @@ export async function iniciarSecuencias() {
     await guardarPistas(id, payload.pistas);
     await cambiarEstado(id, "lista");
     avances.delete(id);
-    version++;
     notificar();
+    avisarCambio();
   });
 
   await ponerAlDia();
-  version++;
   notificar();
+  avisarCambio();
 }
 
 /**

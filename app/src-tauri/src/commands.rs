@@ -1,43 +1,75 @@
-// Órdenes que la interfaz llama con `invoke`. Solo pasan el pedido al motor.
+// Órdenes del motor de audio que la interfaz llama con `invoke`.
+// Casi todas solo pasan el pedido al motor.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-use tauri::State;
+use serde::Serialize;
+use tauri::ipc::Response;
+use tauri::{AppHandle, Manager, State};
 
 use crate::audio::engine::Motor;
+use crate::audio::ondas;
+use crate::biblioteca;
+use crate::secuencia;
 
-fn es_audio(ruta: &Path) -> bool {
-    ruta.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("flac") || e.eq_ignore_ascii_case("wav"))
+/// Qué canción tiene cargada el motor y con qué pistas. Sirve para que, al volver
+/// al editor, la canción siga ahí (sonando o en el mismo punto) sin recargarla.
+#[derive(Default)]
+pub struct CancionCargada(Mutex<Option<(i64, Vec<String>)>>);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cargada {
+    /// Las pistas en el orden en que las tiene el motor: el índice de cada una
+    /// es el que usan `volumen`, `mute` y `solo`. El click va después de todas.
+    pistas: Vec<secuencia::PistaLista>,
+    /// `true` si ya estaba cargada: el motor conserva su posición y su mezcla.
+    ya_estaba: bool,
 }
 
-// Carga todos los FLAC y WAV de una carpeta y devuelve sus nombres en orden.
-#[tauri::command]
-pub fn cargar_carpeta(carpeta: String, motor: State<'_, Motor>) -> Result<Vec<String>, String> {
-    let mut rutas: Vec<PathBuf> = fs::read_dir(&carpeta)
-        .map_err(|e| format!("No se pudo abrir la carpeta: {e}"))?
-        .filter_map(|entrada| entrada.ok())
-        .map(|entrada| entrada.path())
-        .filter(|ruta| es_audio(ruta))
-        .collect();
-    rutas.sort();
+/// Carga las pistas de una canción en el motor. Si ya estaban cargadas (y no se
+/// pide `forzar`), no hace nada. `forzar` se usa cuando las pistas cambiaron,
+/// por ejemplo al terminar de separar voz líder y coros.
+#[tauri::command(async)]
+pub fn cargar_cancion(app: AppHandle, id: i64, forzar: bool) -> Result<Cargada, String> {
+    let pistas = secuencia::leer_lista(&app, id)?.ok_or("Esta canción todavía no tiene pistas")?;
+    let instrumentos: Vec<String> = pistas.iter().map(|p| p.instrumento.clone()).collect();
 
-    if rutas.is_empty() {
-        return Err("La carpeta no tiene archivos FLAC ni WAV".into());
+    let cargada = app.state::<CancionCargada>();
+    let mut actual = cargada.0.lock().unwrap();
+    if !forzar && actual.as_ref() == Some(&(id, instrumentos.clone())) {
+        return Ok(Cargada {
+            pistas,
+            ya_estaba: true,
+        });
     }
 
-    motor.cargar(&rutas)?;
-    Ok(rutas
-        .iter()
-        .map(|ruta| {
-            ruta.file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect())
+    let carpeta = biblioteca::carpeta_cancion(&app, id)?;
+    let rutas: Vec<_> = pistas.iter().map(|p| carpeta.join(&p.archivo)).collect();
+    app.state::<Motor>().cargar(&rutas)?;
+    *actual = Some((id, instrumentos));
+    Ok(Cargada {
+        pistas,
+        ya_estaba: false,
+    })
+}
+
+/// La forma de onda de una pista (ver `audio/ondas.rs`). Llega a la interfaz como
+/// bytes, sin pasar por texto: 100 por segundo, de 0 a 255.
+#[tauri::command(async)]
+pub fn ondas_pista(app: AppHandle, id: i64, instrumento: String) -> Result<Response, String> {
+    // El nombre arma una ruta: solo se aceptan letras y guiones ("voz-lider").
+    if instrumento.is_empty()
+        || !instrumento
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == '-')
+    {
+        return Err("Nombre de pista no válido".into());
+    }
+    let ruta = biblioteca::carpeta_cancion(&app, id)?
+        .join("pistas")
+        .join(format!("{instrumento}.flac"));
+    Ok(Response::new(ondas::picos(&ruta)?))
 }
 
 #[tauri::command]

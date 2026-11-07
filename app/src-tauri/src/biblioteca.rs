@@ -83,14 +83,6 @@ pub fn borrar_cancion(app: AppHandle, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// Carpeta con las pistas separadas de una canción. La usa el editor de prueba
-/// para cargarlas en el motor; en el paso 4 el editor las cargará por su cuenta.
-#[tauri::command]
-pub fn carpeta_pistas(app: AppHandle, id: i64) -> Result<String, String> {
-    let carpeta = carpeta_cancion(&app, id)?.join("pistas");
-    Ok(carpeta.to_string_lossy().into_owned())
-}
-
 #[cfg(test)]
 mod pruebas {
     use super::*;

@@ -20,7 +20,8 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use serde::{Deserialize, Serialize};
@@ -29,7 +30,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::ajustes;
 use crate::audio::nivel;
 use crate::biblioteca;
-use crate::mvsep::{Cliente, Fila, Modelo};
+use crate::mvsep::{CANCELADA, Cliente, Fila, Modelo};
 
 const BS_ROFORMER_SW: Modelo = Modelo {
     sep_type: 63,
@@ -99,10 +100,12 @@ impl Modo {
     }
 }
 
-/// Qué canción se está separando ahora (MVSep gratis hace una a la vez).
+/// Qué canción se está separando ahora (MVSep gratis hace una a la vez),
+/// y la señal para cancelarla.
 #[derive(Default)]
 pub struct Separacion {
     en_curso: Mutex<Option<i64>>,
+    cancelar: Arc<AtomicBool>,
 }
 
 impl Separacion {
@@ -125,10 +128,10 @@ struct Avance {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PistaLista {
-    instrumento: String,
+    pub instrumento: String,
     /// Ruta dentro de la carpeta de la canción, por ejemplo "pistas/voz-lider.flac".
-    archivo: String,
-    vacia: bool,
+    pub archivo: String,
+    pub vacia: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -137,6 +140,8 @@ struct Fin {
     cancion_id: i64,
     pistas: Option<Vec<PistaLista>>,
     error: Option<String>,
+    /// La canceló el encargado (no es un error).
+    cancelada: bool,
 }
 
 /// Empieza a separar y vuelve enseguida. El resultado llega con "secuencia-fin".
@@ -162,6 +167,8 @@ pub fn crear_secuencia(
         }
         *en_curso = Some(id);
     }
+    separacion.cancelar.store(false, Ordering::Relaxed);
+    let cancelar = separacion.cancelar.clone();
 
     thread::spawn(move || {
         let etapas = modo.etapas();
@@ -174,7 +181,7 @@ pub fn crear_secuencia(
             };
             let _ = app.emit("secuencia-avance", avance);
         };
-        let resultado = Cliente::new(clave).and_then(|cliente| {
+        let resultado = Cliente::new(clave, cancelar).and_then(|cliente| {
             let ultima = etapas.len();
             match modo {
                 Modo::Base => base(&cliente, &carpeta, ultima, &mut avisar),
@@ -209,16 +216,51 @@ pub fn crear_secuencia(
                 cancion_id: id,
                 pistas: Some(pistas),
                 error: None,
+                cancelada: false,
             },
-            Err(error) => Fin {
-                cancion_id: id,
-                pistas: None,
-                error: Some(error),
-            },
+            Err(error) => {
+                let cancelada = error == CANCELADA;
+                // Si se canceló, se borra lo que esta separación dejó a medias.
+                if cancelada {
+                    limpiar(&carpeta, modo);
+                }
+                Fin {
+                    cancion_id: id,
+                    pistas: None,
+                    error: Some(error),
+                    cancelada,
+                }
+            }
         };
         let _ = app.emit("secuencia-fin", fin);
     });
     Ok(())
+}
+
+/// Pide cancelar la separación en curso. Responde enseguida; la separación
+/// termina un momento después con "secuencia-fin" (`cancelada: true`).
+#[tauri::command]
+pub fn cancelar_secuencia(separacion: State<'_, Separacion>) {
+    separacion.cancelar.store(true, Ordering::Relaxed);
+}
+
+/// Borra lo intermedio de las etapas de un modo (carpetas, códigos de trabajo y
+/// descargas a medias). Las pistas que la canción ya tenía no se tocan.
+fn limpiar(carpeta: &Path, modo: Modo) {
+    let etapas: &[&str] = match modo {
+        Modo::Base => &["1-base"],
+        Modo::Voces => &["2-voces"],
+        Modo::Guitarras => &["3-acustica", "4-lead"],
+        Modo::Synth => &["5-synth"],
+    };
+    let mvsep = carpeta.join("mvsep");
+    for nombre in etapas {
+        let etapa = mvsep.join(nombre);
+        let _ = fs::remove_dir_all(&etapa);
+        let _ = fs::remove_dir_all(etapa.with_extension("bajando"));
+        let _ = fs::remove_file(etapa.with_extension("trabajo"));
+    }
+    let _ = fs::remove_dir(&mvsep); // solo si quedó vacía
 }
 
 /// Id de la canción que se está separando, si hay una.
@@ -231,7 +273,7 @@ pub fn secuencia_en_curso(separacion: State<'_, Separacion>) -> Option<i64> {
 #[tauri::command(async)]
 pub fn fila_mvsep(app: AppHandle) -> Result<Fila, String> {
     let clave = ajustes::leer_clave_mvsep(&app)?.ok_or("Falta la clave de MVSep.")?;
-    Cliente::new(clave)?.fila()
+    Cliente::new(clave, Arc::default())?.fila()
 }
 
 type Avisar<'a> = dyn FnMut(usize, String) + 'a;
@@ -423,7 +465,12 @@ const LISTA: &str = "lista.json";
 /// Lee `pistas\lista.json`; si no existe (canciones de antes), la arma y la guarda.
 #[tauri::command(async)]
 pub fn pistas_guardadas(app: AppHandle, id: i64) -> Result<Option<Vec<PistaLista>>, String> {
-    let carpeta = biblioteca::carpeta_cancion(&app, id)?;
+    leer_lista(&app, id)
+}
+
+/// Lo mismo que `pistas_guardadas`, para usarlo desde otras partes de Rust.
+pub fn leer_lista(app: &AppHandle, id: i64) -> Result<Option<Vec<PistaLista>>, String> {
+    let carpeta = biblioteca::carpeta_cancion(app, id)?;
     let pistas = carpeta.join("pistas");
     if !pistas.exists() {
         return Ok(None);
