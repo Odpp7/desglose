@@ -18,19 +18,21 @@ export type EstadoMotor = {
   duracion: number;
 };
 
-/** Una pista como la tiene el motor. Su posición en la lista es su índice. */
+/** Una pista como la describe Rust al terminar de separar (`pistas/lista.json`). */
 export type PistaMotor = { instrumento: string; archivo: string; vacia: boolean };
 
 export const motor = {
   /**
-   * Carga las pistas de una canción. Si ya estaban cargadas (al volver al editor)
-   * no hace nada y devuelve `yaEstaba: true`: el motor sigue en el mismo punto.
+   * Carga estas pistas de la canción, en este orden (su índice es el de
+   * `volumen`, `mute` y `solo`; el click va después de todas). Si ya estaban
+   * cargadas igual (al volver al editor), no hace nada y devuelve `true`:
+   * el motor sigue en el mismo punto y con su mezcla.
    */
-  cargarCancion: (id: number, forzar = false) =>
-    invoke<{ pistas: PistaMotor[]; yaEstaba: boolean }>("cargar_cancion", { id, forzar }),
+  cargarCancion: (id: number, pistas: { archivo: string; desfaseMs: number }[]) =>
+    invoke<boolean>("cargar_cancion", { id, pistas }),
   /** Forma de onda de una pista: 100 valores por segundo, de 0 a 255. */
-  ondas: async (id: number, instrumento: string) =>
-    new Uint8Array(await invoke<ArrayBuffer>("ondas_pista", { id, instrumento })),
+  ondas: async (id: number, archivo: string) =>
+    new Uint8Array(await invoke<ArrayBuffer>("ondas_pista", { id, archivo })),
   play: () => invoke<void>("play"),
   pausa: () => invoke<void>("pausa"),
   buscar: (segundos: number) => invoke<void>("buscar", { segundos }),

@@ -57,5 +57,26 @@ pub fn migraciones() -> Vec<Migration> {
             ",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "mezcla guardada, pistas propias y tono",
+            sql: "
+                -- La mezcla de cada pista ya no se pierde al cerrar la app.
+                ALTER TABLE pistas ADD COLUMN volumen    REAL    NOT NULL DEFAULT 1;
+                ALTER TABLE pistas ADD COLUMN mute       INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE pistas ADD COLUMN solo       INTEGER NOT NULL DEFAULT 0;
+                -- Si la pista va en el paquete para REAPER (paso 8).
+                ALTER TABLE pistas ADD COLUMN en_export  INTEGER NOT NULL DEFAULT 1;
+                -- Pistas propias: un archivo que agregó el encargado, con su nombre
+                -- y los milisegundos que está corrida para alinearla.
+                ALTER TABLE pistas ADD COLUMN propia     INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE pistas ADD COLUMN nombre     TEXT;
+                ALTER TABLE pistas ADD COLUMN desfase_ms INTEGER NOT NULL DEFAULT 0;
+
+                -- El tono original, que escribe el encargado (D, Em, F#...).
+                ALTER TABLE canciones ADD COLUMN tono TEXT;
+            ",
+            kind: MigrationKind::Up,
+        },
     ]
 }

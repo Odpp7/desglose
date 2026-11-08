@@ -435,6 +435,9 @@ mod pruebas {
         senal.store(true, Ordering::Relaxed);
         let inicio = Instant::now();
         assert_eq!(cliente.dormir(), Err(CANCELADA.to_string()));
-        assert!(inicio.elapsed() < Duration::from_secs(1), "debe cortar enseguida");
+        assert!(
+            inicio.elapsed() < Duration::from_secs(1),
+            "debe cortar enseguida"
+        );
     }
 }

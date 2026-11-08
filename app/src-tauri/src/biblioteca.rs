@@ -46,6 +46,70 @@ fn medir_duracion_ms(ruta: &Path) -> Result<u64, String> {
     Ok((lector.duracion() * 1000.0).round() as u64)
 }
 
+/// Ruta completa de un archivo de la canción a partir de su ruta relativa
+/// ("pistas/voz-lider.flac"). Solo acepta rutas DENTRO de la carpeta de la
+/// canción: así la interfaz no puede pedir cualquier archivo de la PC.
+pub fn ruta_en_cancion(app: &AppHandle, id: i64, relativa: &str) -> Result<PathBuf, String> {
+    if !es_ruta_segura(relativa) {
+        return Err("Ruta de pista no válida".into());
+    }
+    Ok(carpeta_cancion(app, id)?.join(relativa))
+}
+
+/// Sin unidad ("C:"), sin empezar en "/" y sin ".." para salir de la carpeta.
+fn es_ruta_segura(relativa: &str) -> bool {
+    !relativa.is_empty()
+        && !relativa.contains(':')
+        && !relativa.starts_with(['/', '\\'])
+        && relativa
+            .split(['/', '\\'])
+            .all(|parte| !parte.is_empty() && parte != "..")
+}
+
+/// Copia un archivo propio (un instrumento que el encargado ya tiene) a la
+/// carpeta `propias\` de la canción y devuelve su ruta relativa y su duración.
+#[tauri::command(async)]
+pub fn copiar_pista_propia(
+    app: AppHandle,
+    id: i64,
+    origen: String,
+) -> Result<CancionCopiada, String> {
+    let origen = PathBuf::from(origen);
+    let extension =
+        formato(&origen).ok_or("Ese archivo no es audio. Usa un MP3, WAV, FLAC o M4A.")?;
+    let duracion_ms = medir_duracion_ms(&origen)?;
+
+    let carpeta = carpeta_cancion(&app, id)?.join("propias");
+    fs::create_dir_all(&carpeta).map_err(|e| format!("No se pudo crear la carpeta: {e}"))?;
+    // El nombre es un número que no se repite: la hora en milisegundos.
+    let numero = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let nombre = format!("{numero}.{extension}");
+    fs::copy(&origen, carpeta.join(&nombre))
+        .map_err(|e| format!("No se pudo copiar la pista: {e}"))?;
+
+    Ok(CancionCopiada {
+        archivo: format!("propias/{nombre}"),
+        duracion_ms,
+    })
+}
+
+/// Borra una pista propia y su forma de onda guardada.
+#[tauri::command(async)]
+pub fn borrar_pista_propia(app: AppHandle, id: i64, archivo: String) -> Result<(), String> {
+    if !archivo.starts_with("propias/") {
+        return Err("Solo se pueden quitar pistas propias".into());
+    }
+    let ruta = ruta_en_cancion(&app, id, &archivo)?;
+    let _ = fs::remove_file(ruta.with_extension("ondas"));
+    if ruta.exists() {
+        fs::remove_file(&ruta).map_err(|e| format!("No se pudo quitar la pista: {e}"))?;
+    }
+    Ok(())
+}
+
 /// Copia la canción a su carpeta y devuelve el nombre del archivo y su duración.
 /// Primero comprueba que se pueda leer: así no se copia un archivo dañado.
 /// `async` la saca del hilo principal: la ventana no se congela al copiar.
@@ -91,6 +155,17 @@ mod pruebas {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../samples")
             .join(nombre)
+    }
+
+    #[test]
+    fn solo_rutas_dentro_de_la_cancion() {
+        assert!(es_ruta_segura("pistas/voz-lider.flac"));
+        assert!(es_ruta_segura("propias/1731000.wav"));
+        assert!(!es_ruta_segura("../otra/original.mp3"));
+        assert!(!es_ruta_segura("pistas/../../../Windows/win.ini"));
+        assert!(!es_ruta_segura("C:/Windows/win.ini"));
+        assert!(!es_ruta_segura("/etc/passwd"));
+        assert!(!es_ruta_segura(""));
     }
 
     #[test]

@@ -18,6 +18,18 @@ export const INSTRUMENTOS: Record<string, { nombre: string; color: string }> = {
   otros: { nombre: "Otros", color: "#a2b0d8" },
 };
 
+/** Colores para las pistas propias, que se van turnando. */
+const COLORES_PROPIAS = ["#f6c177", "#9ccfd8", "#c4a7e7", "#ebbcba", "#a3be8c"];
+
 export function instrumento(clave: string) {
   return INSTRUMENTOS[clave] ?? { nombre: clave, color: "#a2b0d8" };
+}
+
+/** Nombre y color de una pista de la base: separada (por su instrumento) o propia. */
+export function datosPista(pista: { instrumento: string; propia: number; nombre: string | null; orden: number }) {
+  if (!pista.propia) return instrumento(pista.instrumento);
+  return {
+    nombre: pista.nombre ?? "Pista propia",
+    color: COLORES_PROPIAS[pista.orden % COLORES_PROPIAS.length],
+  };
 }

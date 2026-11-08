@@ -51,6 +51,8 @@ pub fn run() {
             commands::solo,
             biblioteca::copiar_cancion,
             biblioteca::borrar_cancion,
+            biblioteca::copiar_pista_propia,
+            biblioteca::borrar_pista_propia,
             ajustes::guardar_clave_mvsep,
             ajustes::hay_clave_mvsep,
             secuencia::crear_secuencia,

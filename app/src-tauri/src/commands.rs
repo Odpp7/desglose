@@ -3,72 +3,67 @@
 
 use std::sync::Mutex;
 
-use serde::Serialize;
+use serde::Deserialize;
 use tauri::ipc::Response;
 use tauri::{AppHandle, Manager, State};
 
 use crate::audio::engine::Motor;
 use crate::audio::ondas;
 use crate::biblioteca;
-use crate::secuencia;
+
+/// Una pista para cargar: su archivo dentro de la carpeta de la canción
+/// ("pistas/voz-lider.flac", "propias/1731.wav") y cuántos milisegundos está
+/// corrida (0 para las separadas; las propias se pueden alinear).
+#[derive(Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PistaParaCargar {
+    archivo: String,
+    desfase_ms: i64,
+}
 
 /// Qué canción tiene cargada el motor y con qué pistas. Sirve para que, al volver
 /// al editor, la canción siga ahí (sonando o en el mismo punto) sin recargarla.
 #[derive(Default)]
-pub struct CancionCargada(Mutex<Option<(i64, Vec<String>)>>);
+pub struct CancionCargada(Mutex<Option<(i64, Vec<PistaParaCargar>)>>);
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Cargada {
-    /// Las pistas en el orden en que las tiene el motor: el índice de cada una
-    /// es el que usan `volumen`, `mute` y `solo`. El click va después de todas.
-    pistas: Vec<secuencia::PistaLista>,
-    /// `true` si ya estaba cargada: el motor conserva su posición y su mezcla.
-    ya_estaba: bool,
-}
-
-/// Carga las pistas de una canción en el motor. Si ya estaban cargadas (y no se
-/// pide `forzar`), no hace nada. `forzar` se usa cuando las pistas cambiaron,
-/// por ejemplo al terminar de separar voz líder y coros.
+/// Carga las pistas de una canción en el motor, en ese orden: el índice de cada
+/// una es el que usan `volumen`, `mute` y `solo`, y el click va después de todas.
+/// Si ya estaban cargadas exactamente así, no hace nada y devuelve `true`: el motor
+/// sigue en el mismo punto y con su mezcla. Si cambió algo (una pista nueva, un
+/// desfase), las vuelve a abrir.
 #[tauri::command(async)]
-pub fn cargar_cancion(app: AppHandle, id: i64, forzar: bool) -> Result<Cargada, String> {
-    let pistas = secuencia::leer_lista(&app, id)?.ok_or("Esta canción todavía no tiene pistas")?;
-    let instrumentos: Vec<String> = pistas.iter().map(|p| p.instrumento.clone()).collect();
-
+pub fn cargar_cancion(
+    app: AppHandle,
+    id: i64,
+    pistas: Vec<PistaParaCargar>,
+) -> Result<bool, String> {
+    if pistas.is_empty() {
+        return Err("Esta canción todavía no tiene pistas".into());
+    }
     let cargada = app.state::<CancionCargada>();
     let mut actual = cargada.0.lock().unwrap();
-    if !forzar && actual.as_ref() == Some(&(id, instrumentos.clone())) {
-        return Ok(Cargada {
-            pistas,
-            ya_estaba: true,
-        });
+    if actual.as_ref() == Some(&(id, pistas.clone())) {
+        return Ok(true);
     }
 
-    let carpeta = biblioteca::carpeta_cancion(&app, id)?;
-    let rutas: Vec<_> = pistas.iter().map(|p| carpeta.join(&p.archivo)).collect();
-    app.state::<Motor>().cargar(&rutas)?;
-    *actual = Some((id, instrumentos));
-    Ok(Cargada {
-        pistas,
-        ya_estaba: false,
-    })
+    let rutas = pistas
+        .iter()
+        .map(|p| biblioteca::ruta_en_cancion(&app, id, &p.archivo))
+        .collect::<Result<Vec<_>, _>>()?;
+    let desfases: Vec<f64> = pistas
+        .iter()
+        .map(|p| p.desfase_ms as f64 / 1000.0)
+        .collect();
+    app.state::<Motor>().cargar(&rutas, &desfases)?;
+    *actual = Some((id, pistas));
+    Ok(false)
 }
 
 /// La forma de onda de una pista (ver `audio/ondas.rs`). Llega a la interfaz como
 /// bytes, sin pasar por texto: 100 por segundo, de 0 a 255.
 #[tauri::command(async)]
-pub fn ondas_pista(app: AppHandle, id: i64, instrumento: String) -> Result<Response, String> {
-    // El nombre arma una ruta: solo se aceptan letras y guiones ("voz-lider").
-    if instrumento.is_empty()
-        || !instrumento
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c == '-')
-    {
-        return Err("Nombre de pista no válido".into());
-    }
-    let ruta = biblioteca::carpeta_cancion(&app, id)?
-        .join("pistas")
-        .join(format!("{instrumento}.flac"));
+pub fn ondas_pista(app: AppHandle, id: i64, archivo: String) -> Result<Response, String> {
+    let ruta = biblioteca::ruta_en_cancion(&app, id, &archivo)?;
     Ok(Response::new(ondas::picos(&ruta)?))
 }
 

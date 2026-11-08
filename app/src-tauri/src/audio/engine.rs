@@ -131,6 +131,8 @@ impl Compartido {
 // Lo que tiene abierto el motor mientras hay pistas cargadas.
 struct Sesion {
     rutas: Vec<PathBuf>,
+    /// Segundos que cada pista está corrida respecto de la canción (0 = alineada).
+    desfases: Vec<f64>,
     rate: u32,
     inicio: f64, // segundo de la canción desde el que se empezó a leer
     duracion: f64,
@@ -142,12 +144,23 @@ struct Sesion {
 
 impl Sesion {
     // Abre las pistas en `inicio` y deja la salida corriendo. Los controles vienen en `compartido`.
-    fn abrir(rutas: &[PathBuf], compartido: Arc<Compartido>, inicio: f64) -> Result<Self, String> {
+    fn abrir(
+        rutas: &[PathBuf],
+        desfases: &[f64],
+        compartido: Arc<Compartido>,
+        inicio: f64,
+    ) -> Result<Self, String> {
         let lectores = rutas
             .iter()
             .map(|ruta| track::abrir(ruta))
             .collect::<Result<Vec<_>, _>>()?;
-        let duracion = lectores.iter().map(|l| l.duracion()).fold(0.0, f64::max);
+        let desfase = |i: usize| desfases.get(i).copied().unwrap_or(0.0);
+        // La canción dura hasta que termina la última pista, contando su desfase.
+        let duracion = lectores
+            .iter()
+            .enumerate()
+            .map(|(i, l)| l.duracion() + desfase(i))
+            .fold(0.0, f64::max);
 
         let dispositivo = cpal::default_host()
             .default_output_device()
@@ -162,13 +175,14 @@ impl Sesion {
         let parar = Arc::new(AtomicBool::new(false));
         let mut colas = Vec::new();
         let mut hilos = Vec::new();
-        for lector in lectores {
+        for (i, lector) in lectores.into_iter().enumerate() {
             let (productor, consumidor) =
                 RingBuffer::<f32>::new(rate as usize * 2 * SEGUNDOS_EN_COLA);
             colas.push(consumidor);
             let parar_lector = parar.clone();
+            let corrida = desfase(i);
             hilos.push(thread::spawn(move || {
-                lector.leer(inicio, rate, productor, parar_lector)
+                lector.leer_desde(inicio, corrida, rate, productor, parar_lector)
             }));
         }
         esperar_audio(&colas, rate);
@@ -186,6 +200,7 @@ impl Sesion {
 
         Ok(Self {
             rutas: rutas.to_vec(),
+            desfases: desfases.to_vec(),
             rate,
             inicio,
             duracion,
@@ -226,14 +241,15 @@ pub struct Motor {
 
 impl Motor {
     // Cierra lo anterior, abre las pistas nuevas y deja la salida lista, en pausa.
-    pub fn cargar(&self, rutas: &[PathBuf]) -> Result<(), String> {
+    // `desfases` dice cuántos segundos está corrida cada pista (vacío = todas en 0).
+    pub fn cargar(&self, rutas: &[PathBuf], desfases: &[f64]) -> Result<(), String> {
         let mut sesion = self.sesion.lock().unwrap();
         if let Some(anterior) = sesion.take() {
             anterior.cerrar();
         }
 
         let compartido = Arc::new(Compartido::new(rutas.len()));
-        *sesion = Some(Sesion::abrir(rutas, compartido, 0.0)?);
+        *sesion = Some(Sesion::abrir(rutas, desfases, compartido, 0.0)?);
         Ok(())
     }
 
@@ -244,6 +260,7 @@ impl Motor {
         let anterior = sesion.take().ok_or("Primero carga las pistas")?;
         let compartido = anterior.compartido.clone();
         let rutas = anterior.rutas.clone();
+        let desfases = anterior.desfases.clone();
         let destino = segundos.clamp(0.0, anterior.duracion);
 
         let sonaba = compartido.reproduciendo.load(Ordering::Relaxed);
@@ -258,7 +275,12 @@ impl Motor {
         compartido.terminado.store(false, Ordering::Relaxed);
         compartido.cuadros_sonados.store(0, Ordering::Relaxed);
 
-        *sesion = Some(Sesion::abrir(&rutas, compartido.clone(), destino)?);
+        *sesion = Some(Sesion::abrir(
+            &rutas,
+            &desfases,
+            compartido.clone(),
+            destino,
+        )?);
         compartido.reproduciendo.store(sonaba, Ordering::Relaxed);
         Ok(())
     }
@@ -282,10 +304,14 @@ impl Motor {
     // Exporta junto a la carpeta de las pistas y devuelve la ruta del archivo.
     // No se guarda dentro de esa carpeta, porque se cargaría como una pista más.
     pub fn exportar(&self) -> Result<PathBuf, String> {
-        let (rutas, controles) = {
+        let (rutas, desfases, controles) = {
             let sesion = self.sesion.lock().unwrap();
             let sesion = sesion.as_ref().ok_or("Primero carga las pistas")?;
-            (sesion.rutas.clone(), sesion.compartido.copiar_controles())
+            (
+                sesion.rutas.clone(),
+                sesion.desfases.clone(),
+                sesion.compartido.copiar_controles(),
+            )
         };
 
         let carpeta = rutas[0]
@@ -294,7 +320,7 @@ impl Motor {
         let nombre = carpeta.file_name().unwrap_or_default().to_string_lossy();
         let destino = carpeta.with_file_name(format!("{nombre}-mezcla.wav"));
 
-        render::exportar(&rutas, controles, &destino)?;
+        render::exportar(&rutas, &desfases, controles, &destino)?;
         Ok(destino)
     }
 
@@ -967,7 +993,7 @@ mod pruebas {
     #[ignore]
     fn reproduce_sin_cortes() {
         let motor = Motor::default();
-        motor.cargar(&rutas_sinteticas()).unwrap();
+        motor.cargar(&rutas_sinteticas(), &[]).unwrap();
 
         motor.play().unwrap();
         thread::sleep(Duration::from_secs(5));

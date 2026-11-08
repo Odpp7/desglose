@@ -1,16 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import { IconoInicio, IconoPausa, IconoPlay } from "../../components/icons";
 import { escucharEstado, formatoTiempo, motor } from "../../lib/engine";
+import { formatoSemitonos, transponer } from "../../lib/tonos";
 
 // Barra de abajo, por bloques con título (como en la captura de referencia):
 //   TRANSPORTE · POSICIÓN · VELOCIDAD · TONALIDAD · CLICK · Exportar
-// Hoy funcionan Transporte y Posición. Los demás bloques ya están en su lugar,
-// apagados, y se encienden en su paso (5: click, 8: exportar, 9: velocidad y tono).
+// Funcionan Transporte, Posición, Velocidad y Tonalidad. Click y Exportar ya están
+// en su lugar, apagados, y se encienden en su paso (5: click, 8: exportar).
+//
+// Velocidad y Tonalidad cambian lo que se ESCUCHA (para ensayar o cantar en otro
+// tono). El click no cambia de tono. Exportar en otro tono llega en el paso 8.
 //
 // La barra espaciadora reproduce o pausa (salvo mientras se escribe en un campo).
 // El tiempo se escribe directo en el texto, sin pasar por el estado de React.
 
-export function Transporte({ duracion, alError }: { duracion: number; alError: (e: string) => void }) {
+/** Velocidad (1 = normal) y semitonos (0 = tono original). */
+export type Estudio = { velocidad: number; semitonos: number };
+
+type Props = {
+  duracion: number;
+  estudio: Estudio;
+  /** Tono original de la canción, para mostrar "A → B (+2)". */
+  tono: string | null;
+  alCambiarEstudio: (estudio: Estudio) => void;
+  alError: (e: string) => void;
+};
+
+const VELOCIDAD_MINIMA = 0.5;
+const VELOCIDAD_MAXIMA = 1.5;
+const SEMITONOS_MAXIMOS = 6;
+
+export function Transporte({ duracion, estudio, tono, alCambiarEstudio, alError }: Props) {
   const [reproduciendo, setReproduciendo] = useState(false);
   const tiempo = useRef<HTMLSpanElement>(null);
   const sonando = useRef(false);
@@ -70,12 +90,60 @@ export function Transporte({ duracion, alError }: { duracion: number; alError: (
         </div>
       </Bloque>
 
-      <Bloque titulo="Velocidad" apagado="Llega en el paso 9 (estudio)">
-        <Segmentos opciones={["0.75x", "1x", "1.1x"]} elegido={1} />
+      <Bloque titulo="Velocidad">
+        <Paso
+          etiqueta="Más lento"
+          deshabilitado={estudio.velocidad <= VELOCIDAD_MINIMA + 0.001}
+          onClick={() => alCambiarEstudio({ ...estudio, velocidad: redondear(estudio.velocidad - 0.05) })}
+        >
+          −
+        </Paso>
+        <button
+          title="Clic: velocidad normal"
+          onClick={() => alCambiarEstudio({ ...estudio, velocidad: 1 })}
+          className={`w-14 rounded-md py-1.5 font-mono text-[13px] ${
+            estudio.velocidad === 1 ? "text-fg-2" : "bg-[#22305e] text-accent"
+          }`}
+        >
+          {Math.round(estudio.velocidad * 100)}%
+        </button>
+        <Paso
+          etiqueta="Más rápido"
+          deshabilitado={estudio.velocidad >= VELOCIDAD_MAXIMA - 0.001}
+          onClick={() => alCambiarEstudio({ ...estudio, velocidad: redondear(estudio.velocidad + 0.05) })}
+        >
+          +
+        </Paso>
       </Bloque>
 
-      <Bloque titulo="Tonalidad" apagado="Llega en el paso 9 (estudio)">
-        <Segmentos opciones={["−", "0", "+"]} elegido={1} />
+      <Bloque titulo="Tonalidad">
+        <Paso
+          etiqueta="Bajar medio tono"
+          deshabilitado={estudio.semitonos <= -SEMITONOS_MAXIMOS}
+          onClick={() => alCambiarEstudio({ ...estudio, semitonos: estudio.semitonos - 1 })}
+        >
+          −
+        </Paso>
+        <button
+          title="Clic: tono original"
+          onClick={() => alCambiarEstudio({ ...estudio, semitonos: 0 })}
+          className={`min-w-14 rounded-md px-2 py-1.5 font-mono text-[13px] whitespace-nowrap ${
+            estudio.semitonos === 0 ? "text-fg-2" : "bg-[#22305e] text-accent"
+          }`}
+        >
+          {tono && estudio.semitonos !== 0
+            ? `${tono} → ${transponer(tono, estudio.semitonos)} (${formatoSemitonos(estudio.semitonos)})`
+            : tono && estudio.semitonos === 0
+              ? tono
+              : formatoSemitonos(estudio.semitonos)}
+        </button>
+        <Paso
+          etiqueta="Subir medio tono"
+          deshabilitado={estudio.semitonos >= SEMITONOS_MAXIMOS}
+          onClick={() => alCambiarEstudio({ ...estudio, semitonos: estudio.semitonos + 1 })}
+        >
+          +
+        </Paso>
       </Bloque>
 
       <Bloque titulo="Click" apagado="Llega en el paso 5">
@@ -105,6 +173,30 @@ function Bloque({ titulo, apagado, children }: { titulo: string; apagado?: strin
       <span className="text-[10px] font-semibold tracking-wider text-fg-3 uppercase">{titulo}</span>
       <div className="flex items-center gap-2">{children}</div>
     </div>
+  );
+}
+
+/** Evita arrastrar decimales: 0.7499999 → 0.75. */
+function redondear(v: number) {
+  return Math.round(v * 100) / 100;
+}
+
+function Paso(props: {
+  etiqueta: string;
+  deshabilitado: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      aria-label={props.etiqueta}
+      title={props.etiqueta}
+      disabled={props.deshabilitado}
+      onClick={props.onClick}
+      className="grid size-8 place-items-center rounded-md border border-line bg-ink-2 font-mono text-[15px] text-fg-2 hover:text-fg disabled:opacity-35"
+    >
+      {props.children}
+    </button>
   );
 }
 

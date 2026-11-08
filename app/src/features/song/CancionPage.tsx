@@ -4,14 +4,14 @@ import { EstadoCancion } from "../../components/EstadoCancion";
 import { IconoNota } from "../../components/icons";
 import { hayClaveMvsep } from "../../lib/ajustes";
 import { extension } from "../../lib/archivos";
-import { useVersion } from "../../lib/cambios";
-import { listarPistas, obtenerCancion, type Cancion } from "../../lib/db";
-import type { PistaMotor } from "../../lib/engine";
+import { avisarCambio, useVersion } from "../../lib/cambios";
+import { cambiarTono, listarPistas, obtenerCancion, type Cancion, type Pista } from "../../lib/db";
 import { formatoDuracion } from "../../lib/formato";
 import { crearSecuencia, useAvance } from "../../lib/secuencia";
 import { recordarCancion } from "../../lib/sesion";
 import { Editor } from "../editor/Editor";
 import { BotonCancelar, BotonesSeparar, EstadoFila, FaltaClave, Progreso } from "./Separacion";
+import { SelectorTono } from "./SelectorTono";
 
 // La canción abierta, a la derecha de la biblioteca (como en la captura de referencia):
 //
@@ -27,7 +27,7 @@ import { BotonCancelar, BotonesSeparar, EstadoFila, FaltaClave, Progreso } from 
 export function CancionPage() {
   const id = Number(useParams().id);
   const [cancion, setCancion] = useState<Cancion | null | undefined>(undefined);
-  const [pistas, setPistas] = useState<PistaMotor[]>([]);
+  const [pistas, setPistas] = useState<Pista[]>([]);
   const [hayClave, setHayClave] = useState(true);
   const version = useVersion();
 
@@ -40,10 +40,7 @@ export function CancionPage() {
       },
       () => setCancion(null),
     );
-    listarPistas(id).then(
-      (p) => setPistas(p.map((x) => ({ instrumento: x.instrumento, archivo: x.archivo, vacia: !!x.vacia }))),
-      () => setPistas([]),
-    );
+    listarPistas(id).then(setPistas, () => setPistas([]));
     hayClaveMvsep().then(setHayClave, () => setHayClave(false));
   }, [id, version]);
 
@@ -54,13 +51,17 @@ export function CancionPage() {
 
   const lista = cancion.estado === "lista";
   const suenan = pistas.filter((p) => !p.vacia).length;
+  // Para los botones Separar cuentan solo las pistas que salieron de MVSep.
+  const separadas = pistas
+    .filter((p) => !p.propia)
+    .map((p) => ({ instrumento: p.instrumento, archivo: p.archivo, vacia: !!p.vacia }));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="m-3 mb-0 flex gap-3 rounded-xl border border-line bg-ink-0 p-3">
         <div className="flex min-w-0 flex-1 items-center">
           {lista ? (
-            <BotonesSeparar cancion={cancion} pistas={pistas} hayClave={hayClave} />
+            <BotonesSeparar cancion={cancion} pistas={separadas} hayClave={hayClave} />
           ) : (
             <p className="m-0 text-fg-3">Primero hay que crear la secuencia: separar los instrumentos.</p>
           )}
@@ -87,7 +88,13 @@ export function CancionPage() {
       </div>
 
       <div className="flex min-w-0 items-stretch overflow-hidden border-b border-line">
-        <Dato titulo="Tonalidad" valor="—" ayuda="La escribe el encargado (paso 4b)" />
+        <div className="min-w-[120px] border-r border-line px-4 py-2">
+          <div className="text-[10px] font-semibold tracking-wider text-fg-3 uppercase">Tonalidad</div>
+          <SelectorTono
+            tono={cancion.tono}
+            alElegir={(tono) => cambiarTono(cancion.id, tono).then(avisarCambio)}
+          />
+        </div>
         <Dato titulo="BPM" valor="—" ayuda="Se define en el paso 5 (Click)" />
         <Dato titulo="Duración" valor={formatoDuracion(cancion.duracion_ms)} />
         <Dato titulo="Pistas" valor={lista ? String(suenan) : "—"} />
@@ -95,7 +102,8 @@ export function CancionPage() {
       </div>
 
       {lista ? (
-        <Editor cancion={cancion} instrumentos={pistas.map((p) => p.instrumento).join(",")} />
+        // `key`: al abrir otra canción, el editor empieza de cero (velocidad y tono normales).
+        <Editor key={cancion.id} cancion={cancion} pistas={pistas} />
       ) : (
         <div className="flex-1 overflow-auto">
           {cancion.estado === "nueva" && <SinSecuencia id={id} hayClave={hayClave} />}

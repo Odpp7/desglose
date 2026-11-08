@@ -1,7 +1,5 @@
-// Lo que la app recuerda mientras está abierta (y un poco más):
-//   - la última canción abierta, para que "Editor" vuelva a ella;
-//   - la mezcla de cada canción (volumen, mute, solo), para que al volver al
-//     editor todo siga como estaba. En el paso 4b la mezcla pasa a SQLite.
+// La última canción abierta, para volver a ella al abrir la app.
+// (La mezcla de cada pista se guarda en SQLite: ver `actualizarPista` en db.ts.)
 
 const CLAVE_ULTIMA = "desglose.ultimaCancion";
 
@@ -20,22 +18,6 @@ export function recordarCancion(id: number | null) {
     if (id === null) localStorage.removeItem(CLAVE_ULTIMA);
     else localStorage.setItem(CLAVE_ULTIMA, String(id));
   } catch {
-    // Sin almacenamiento, "Editor" simplemente no recuerda la canción.
+    // Sin almacenamiento, la app simplemente no recuerda la canción.
   }
-}
-
-export type EstadoPista = { volumen: number; mute: boolean; solo: boolean };
-
-const mezclas = new Map<number, Map<string, EstadoPista>>();
-
-export const PISTA_NUEVA: EstadoPista = { volumen: 1, mute: false, solo: false };
-
-/** La mezcla de una canción: por instrumento. */
-export function mezclaDe(cancionId: number) {
-  let mezcla = mezclas.get(cancionId);
-  if (!mezcla) {
-    mezcla = new Map();
-    mezclas.set(cancionId, mezcla);
-  }
-  return mezcla;
 }

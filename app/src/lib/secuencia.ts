@@ -170,7 +170,8 @@ async function ponerAlDia() {
 
     const enDisco = await invoke<PistaRust[] | null>("pistas_guardadas", { id: cancion.id });
     if (enDisco && enDisco.length > 0) {
-      const enBase = await listarPistas(cancion.id);
+      // Se comparan solo las separadas: las propias no están en `lista.json`.
+      const enBase = (await listarPistas(cancion.id)).filter((p) => !p.propia);
       const iguales = enBase.map((p) => p.instrumento).join() === enDisco.map((p) => p.instrumento).join();
       if (cancion.estado !== "lista" || !iguales) {
         await guardarPistas(cancion.id, enDisco);

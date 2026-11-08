@@ -2,9 +2,30 @@
 
 Este documento es el punto de partida de la app real. Reúne lo decidido y lo aprendido en la Fase 0, para empezar en una sesión nueva sin repetir nada. Si algo choca con `docs/especificacion.md`, manda este documento y `docs/decisiones.md`.
 
+## Dónde quedamos (7 de noviembre)
+
+**Pasos 1 a 4 terminados ✅** en la rama `fase-1` (subida a GitHub, todavía no unida a `main`). **Sigue el paso 5: Click.** Ver la tabla "Los 10 pasos" más abajo.
+
+Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
+
+- **Una sola pantalla**, como la captura de referencia de Oscar (estilo StemDeck): biblioteca siempre a la izquierda (carpetas y canciones), la canción abierta a la derecha. Ver la memoria/decisión del diseño antes de tocar la interfaz.
+- **Biblioteca:** agregar arrastrando o con botón, carpetas, buscar, renombrar, mover, borrar. SQLite con 3 migraciones (`src-tauri/src/db.rs`; para cambiar tablas se agrega una migración nueva, nunca se edita una vieja).
+- **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
+- **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. Click y Exportar están en el transporte, apagados hasta su paso.
+- **Pruebas:** 26 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
+
+Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
+
+- **La fila de MVSep manda.** En el plan gratis cada trabajo hace la fila completa y hay uno a la vez por cuenta. El 7 de noviembre había ~400 en fila y un trabajo tardó 80 minutos. Por eso todo es por partes y opcional. `app/scripts/medir-fila-mvsep.ps1` anota la fila cada 30 minutos en `samples/fila-mvsep.csv`; quedaron pocas horas medidas (se cortó), falta medir uno o dos días para recomendar horarios.
+- **Recarga en caliente de Vite:** al borrar o mover archivos de la interfaz, la ventana de Tauri puede quedar en blanco. No es un error del código: cerrar y volver a abrir `npm run tauri dev`.
+- **Revisar el diseño sin pedirle capturas a Oscar:** con PowerShell y `PrintWindow` (user32) se captura solo la ventana de Desglose a un PNG y se mira. Si mide 160×28, está minimizada.
+- **Leer la base desde fuera:** `%APPDATA%\com.desglose.app\desglose.db`. Abrirla con una conexión normal (no `mode=ro`): los cambios recientes están en el archivo `-wal` y en solo lectura no se ven.
+- **Scripts largos en la terminal:** un `python - <<EOF` con mucho texto a veces falla o lo bloquea el chequeo de seguridad. Mejor escribir el script en un archivo y correrlo.
+- **La clave de MVSep** ya se pega en Ajustes (`%APPDATA%\com.desglose.app\clave-mvsep.txt`). La copia vieja en `prototypes/ai-pipeline/.env` se va con ese prototipo en el paso 6.
+
 ## Antes de empezar
 
-Lee `CLAUDE.md`, este documento y `docs/decisiones.md`. Trabaja en una rama nueva creada desde `main` (la Fase 0 ya está unida a `main`).
+Lee `CLAUDE.md`, este documento y `docs/decisiones.md`. Se trabaja en la rama `fase-1` (creada desde `main`).
 
 Con Oscar:
 
@@ -67,12 +88,12 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 1. Base ✅ | La app en `app/`, modo oscuro, pantallas y motor integrado |
 | 2. Biblioteca ✅ | Agregar, buscar y borrar canciones, con SQLite. La canción se agrega arrastrándola a la ventana o con "Elegir archivo"; el encargado nunca escribe rutas. Colecciones (carpetas) en una barra lateral, sin dibujar ondas en la lista |
 | 3. Crear secuencia ✅ | Un botón separa en 6 pistas con 1 trabajo de MVSep, con avance y espera estimada. Botones opcionales aparte: voz líder y coros, guitarras, synth |
-| 4. Editor (4a ✅) | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" por pista, "Añadir pista" (un archivo propio que se arrastra para alinearlo) y "Tono original", que escribe el encargado |
+| 4. Editor ✅ | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" (R) por pista, "Añadir pista" (un archivo propio que se alinea arrastrándolo o con ‹ ›, y se quita con ✕) y "Tonalidad", que escribe el encargado. Se adelantaron del paso 9 la velocidad y el cambio de tono al escuchar |
 | 5. Click | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones | La IA propone; mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |
 | 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
-| 9. Estudio | Velocidad (50% a 150%), tono y bucle |
+| 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
 
 Tras el paso 8 ya se puede usar una secuencia real en un culto.

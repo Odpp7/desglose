@@ -16,7 +16,13 @@ use super::track;
 const MAXIMO_24_BITS: f32 = 8_388_607.0;
 
 // `controles` es una copia de los controles: exportar no toca lo que está sonando.
-pub fn exportar(rutas: &[PathBuf], controles: Compartido, destino: &Path) -> Result<(), String> {
+// `desfases`: segundos que está corrida cada pista, igual que al reproducir.
+pub fn exportar(
+    rutas: &[PathBuf],
+    desfases: &[f64],
+    controles: Compartido,
+    destino: &Path,
+) -> Result<(), String> {
     let lectores = rutas
         .iter()
         .map(|ruta| track::abrir(ruta))
@@ -40,12 +46,13 @@ pub fn exportar(rutas: &[PathBuf], controles: Compartido, destino: &Path) -> Res
     let parar = Arc::new(AtomicBool::new(false));
     let mut colas = Vec::new();
     let mut hilos = Vec::new();
-    for lector in lectores {
+    for (i, lector) in lectores.into_iter().enumerate() {
         let (productor, consumidor) = RingBuffer::<f32>::new(rate as usize * 2);
         colas.push(consumidor);
         let parar_lector = parar.clone();
+        let desfase = desfases.get(i).copied().unwrap_or(0.0);
         hilos.push(thread::spawn(move || {
-            lector.leer(0.0, rate, productor, parar_lector)
+            lector.leer_desde(0.0, desfase, rate, productor, parar_lector)
         }));
     }
 
@@ -120,7 +127,7 @@ mod pruebas {
 
         let destino = std::env::temp_dir().join("desglose-prueba-exportar.wav");
         let rutas = [ruta_sintetica(1), ruta_sintetica(2), ruta_sintetica(3)];
-        exportar(&rutas, controles, &destino).unwrap();
+        exportar(&rutas, &[], controles, &destino).unwrap();
 
         let mut wav = WavReader::open(&destino).unwrap();
         assert_eq!(wav.spec().bits_per_sample, 24);

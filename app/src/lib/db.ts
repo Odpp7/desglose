@@ -17,6 +17,8 @@ export type Cancion = {
   creada_en: string;
   /** Por qué falló la última vez que se creó la secuencia. */
   error: string | null;
+  /** Tono original que escribe el encargado: "D", "Em", "F#"... */
+  tono: string | null;
 };
 
 export type EstadoCancion = "nueva" | "separando" | "lista" | "error";
@@ -24,14 +26,31 @@ export type EstadoCancion = "nueva" | "separando" | "lista" | "error";
 export type Pista = {
   id: number;
   cancion_id: number;
-  /** "voz-lider", "coros", "bateria"... */
+  /** "voz-lider", "coros", "bateria"... Las propias: "propia-1731000". */
   instrumento: string;
-  /** Dentro de la carpeta de la canción: "pistas/voz-lider.flac". */
+  /** Dentro de la carpeta de la canción: "pistas/voz-lider.flac", "propias/1731000.wav". */
   archivo: string;
   /** SQLite no tiene booleanos: 0 o 1. */
   vacia: number;
   orden: number;
+  /** La mezcla: 1 = volumen normal (0 dB). */
+  volumen: number;
+  mute: number;
+  solo: number;
+  /** Va en el paquete para REAPER (paso 8). */
+  en_export: number;
+  /** La agregó el encargado (no salió de MVSep). */
+  propia: number;
+  /** Nombre de una pista propia (el del archivo, o el que le ponga el encargado). */
+  nombre: string | null;
+  /** Milisegundos que está corrida la pista (solo las propias). */
+  desfase_ms: number;
 };
+
+/** Lo que se puede cambiar de una pista desde el editor. */
+export type CambioPista = Partial<
+  Pick<Pista, "volumen" | "mute" | "solo" | "en_export" | "desfase_ms" | "nombre">
+>;
 
 export type Coleccion = {
   id: number;
@@ -95,6 +114,11 @@ export async function borrarCancion(id: number) {
   await db.execute("DELETE FROM canciones WHERE id = $1", [id]);
 }
 
+export async function cambiarTono(id: number, tono: string | null) {
+  const db = await base();
+  await db.execute("UPDATE canciones SET tono = $1 WHERE id = $2", [tono, id]);
+}
+
 export async function cambiarEstado(id: number, estado: EstadoCancion, error: string | null = null) {
   const db = await base();
   await db.execute("UPDATE canciones SET estado = $1, error = $2 WHERE id = $3", [estado, error, id]);
@@ -107,19 +131,80 @@ export async function listarPistas(cancionId: number) {
   return db.select<Pista[]>("SELECT * FROM pistas WHERE cancion_id = $1 ORDER BY orden", [cancionId]);
 }
 
-/** Reemplaza las pistas de la canción por las nuevas, en ese orden. */
+/**
+ * Pone al día las pistas SEPARADAS de la canción con las que dejó MVSep, en ese
+ * orden. Conserva la mezcla de las que ya existían (mismo instrumento), quita las
+ * que ya no están (por ejemplo "voz" al dividirla en líder y coros) y deja las
+ * pistas propias al final, sin tocarlas.
+ */
 export async function guardarPistas(
   cancionId: number,
-  pistas: { instrumento: string; archivo: string; vacia: boolean }[],
+  separadas: { instrumento: string; archivo: string; vacia: boolean }[],
 ) {
   const db = await base();
-  await db.execute("DELETE FROM pistas WHERE cancion_id = $1", [cancionId]);
-  for (const [orden, p] of pistas.entries()) {
-    await db.execute(
-      "INSERT INTO pistas (cancion_id, instrumento, archivo, vacia, orden) VALUES ($1, $2, $3, $4, $5)",
-      [cancionId, p.instrumento, p.archivo, p.vacia ? 1 : 0, orden],
-    );
+  const antes = await listarPistas(cancionId);
+  const nuevas = new Set(separadas.map((p) => p.instrumento));
+
+  for (const p of antes) {
+    if (!p.propia && !nuevas.has(p.instrumento)) {
+      await db.execute("DELETE FROM pistas WHERE id = $1", [p.id]);
+    }
   }
+  for (const [orden, p] of separadas.entries()) {
+    const existente = antes.find((a) => !a.propia && a.instrumento === p.instrumento);
+    if (existente) {
+      await db.execute("UPDATE pistas SET archivo = $1, vacia = $2, orden = $3 WHERE id = $4", [
+        p.archivo,
+        p.vacia ? 1 : 0,
+        orden,
+        existente.id,
+      ]);
+    } else {
+      await db.execute(
+        "INSERT INTO pistas (cancion_id, instrumento, archivo, vacia, orden) VALUES ($1, $2, $3, $4, $5)",
+        [cancionId, p.instrumento, p.archivo, p.vacia ? 1 : 0, orden],
+      );
+    }
+  }
+  // Las propias, después de las separadas y en el mismo orden en que estaban.
+  const propias = antes.filter((p) => p.propia);
+  for (const [i, p] of propias.entries()) {
+    await db.execute("UPDATE pistas SET orden = $1 WHERE id = $2", [separadas.length + i, p.id]);
+  }
+}
+
+/** Columnas que se pueden cambiar desde el editor (lista fija, no viene del usuario). */
+const COLUMNAS: (keyof CambioPista)[] = ["volumen", "mute", "solo", "en_export", "desfase_ms", "nombre"];
+
+/** Guarda un cambio de mezcla, de "va a REAPER", de desfase o de nombre. */
+export async function actualizarPista(id: number, cambio: CambioPista) {
+  const campos = COLUMNAS.filter((c) => cambio[c] !== undefined);
+  if (campos.length === 0) return;
+  const db = await base();
+  const asignaciones = campos.map((campo, i) => campo + " = $" + (i + 1)).join(", ");
+  const valores: unknown[] = campos.map((campo) => cambio[campo]);
+  await db.execute("UPDATE pistas SET " + asignaciones + " WHERE id = $" + (campos.length + 1), [
+    ...valores,
+    id,
+  ]);
+}
+
+/** Agrega una pista propia (ya copiada a `propias/`) al final de la canción. */
+export async function agregarPistaPropia(cancionId: number, archivo: string, nombre: string) {
+  const db = await base();
+  const [{ siguiente }] = await db.select<{ siguiente: number }[]>(
+    "SELECT COALESCE(MAX(orden), -1) + 1 AS siguiente FROM pistas WHERE cancion_id = $1",
+    [cancionId],
+  );
+  await db.execute(
+    "INSERT INTO pistas (cancion_id, instrumento, archivo, orden, propia, nombre) VALUES ($1, $2, $3, $4, 1, $5)",
+    [cancionId, "propia-" + Date.now(), archivo, siguiente, nombre],
+  );
+}
+
+export async function borrarPista(id: number) {
+  const db = await base();
+  await db.execute("DELETE FROM pistas WHERE id = $1", [id]);
 }
 
 // ---------- Colecciones ----------

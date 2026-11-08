@@ -9,6 +9,16 @@ export function copiarCancion(id: number, origen: string) {
   return invoke<{ archivo: string; duracionMs: number }>("copiar_cancion", { id, origen });
 }
 
+/** Copia un archivo propio a la carpeta `propias/` de la canción. */
+export function copiarPistaPropia(id: number, origen: string) {
+  return invoke<{ archivo: string; duracionMs: number }>("copiar_pista_propia", { id, origen });
+}
+
+/** Borra el archivo de una pista propia. */
+export function borrarPistaPropia(id: number, archivo: string) {
+  return invoke<void>("borrar_pista_propia", { id, archivo });
+}
+
 /** Borra la carpeta de la canción con todo su audio. */
 export function borrarCarpetaCancion(id: number) {
   return invoke<void>("borrar_cancion", { id });

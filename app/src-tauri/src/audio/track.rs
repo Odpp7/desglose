@@ -120,6 +120,41 @@ impl Lector {
         }
     }
 
+    /// Como `leer`, pero la pista está corrida `desfase` segundos respecto de la
+    /// canción (positivo: empieza después; negativo: empieza antes). Es lo que
+    /// permite alinear una pista propia que no empieza justo con la canción.
+    /// Si en `inicio` la pista todavía no empezó, primero entrega silencio.
+    pub fn leer_desde(
+        self,
+        inicio: f64,
+        desfase: f64,
+        rate_salida: u32,
+        mut cola: Producer<f32>,
+        parar: Arc<AtomicBool>,
+    ) {
+        let en_archivo = inicio - desfase;
+        if en_archivo >= 0.0 {
+            return self.leer(en_archivo, rate_salida, cola, parar);
+        }
+        // Silencio hasta que la pista empieza, ya a la frecuencia de salida.
+        let mut cuadros = (-en_archivo * rate_salida as f64).round() as u64;
+        let ceros = [0.0f32; 2 * 1024];
+        let mut sin_limite = u64::MAX;
+        while cuadros > 0 {
+            let ahora = cuadros.min(1024);
+            if !empujar(
+                &ceros[..ahora as usize * 2],
+                &mut sin_limite,
+                &mut cola,
+                &parar,
+            ) {
+                return;
+            }
+            cuadros -= ahora;
+        }
+        self.leer(0.0, rate_salida, cola, parar)
+    }
+
     // Corre en su propio hilo hasta terminar el archivo o hasta que `parar` sea verdadero.
     // Deja en la cola audio estéreo intercalado (izq, der, izq, der...) a `rate_salida`.
     pub fn leer(
@@ -361,6 +396,42 @@ mod pruebas {
                 "distancia {distancia}"
             );
         }
+    }
+
+    // Una pista corrida 1 s: el primer segundo es silencio y el primer click
+    // (que en el archivo está en 0 s) suena en 1 s.
+    #[test]
+    fn el_desfase_agrega_silencio_delante() {
+        let ruta = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../samples/sinteticas/pista1.flac"
+        );
+        let lector = abrir(Path::new(ruta)).unwrap();
+        let rate = 44_100;
+        let (productor, mut consumidor) = RingBuffer::<f32>::new(rate as usize * 2 * 3);
+        let parar = Arc::new(AtomicBool::new(false));
+        let parar_lector = parar.clone();
+        let hilo =
+            thread::spawn(move || lector.leer_desde(0.0, 1.0, rate, productor, parar_lector));
+
+        // Lee 2 segundos de audio y busca dónde aparece el primer sonido.
+        let mut muestras = Vec::new();
+        while muestras.len() < rate as usize * 2 * 2 {
+            match consumidor.pop() {
+                Ok(m) => muestras.push(m),
+                Err(_) => thread::sleep(Duration::from_millis(1)),
+            }
+        }
+        parar.store(true, Ordering::Relaxed);
+        while consumidor.pop().is_ok() {}
+        hilo.join().unwrap();
+
+        let primer_sonido = muestras.iter().position(|m| m.abs() > 0.01).unwrap() / 2;
+        let segundos = primer_sonido as f64 / rate as f64;
+        assert!(
+            (segundos - 1.0).abs() < 0.005,
+            "el primer click debe sonar en 1 s: {segundos}"
+        );
     }
 
     #[test]
