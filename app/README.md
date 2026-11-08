@@ -8,13 +8,14 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `app/`: rutas y el marco: barra fina, biblioteca a la izquierda, canción a la derecha.
   - `features/library/`: la biblioteca (carpetas, canciones, agregar y arrastrar).
   - `features/song/`: la canción abierta (botones Separar, datos, crear secuencia).
-  - `features/editor/`: pistas, ondas, mezclador y transporte.
+  - `features/editor/`: pistas, ondas, mezclador, transporte y el panel del click (`EditorClick.tsx`).
   - `features/settings/`: Ajustes (la clave de MVSep).
   - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto, estado).
   - `lib/engine.ts`: las órdenes al motor de audio (cargar canción, ondas, play...).
   - `lib/db.ts`: las consultas a SQLite.
   - `lib/secuencia.ts`: separar con MVSep, su avance y cancelar.
   - `lib/sesion.ts`, `lib/cambios.ts`: última canción, mezcla y aviso de cambios.
+  - `lib/click.ts`, `lib/tocarTempo.ts`: el click de la canción (BPM, compás, primer tiempo, conteo) y "tocar el tempo".
 - `src-tauri/`: el motor en Rust.
   - `src/audio/`: reloj, lectura de pistas desde el disco, click, velocidad y tono, exportación.
   - `src/commands.rs`: las órdenes del motor que llama la interfaz.

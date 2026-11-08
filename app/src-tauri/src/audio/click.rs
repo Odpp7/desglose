@@ -1,6 +1,10 @@
 // Metrónomo: genera el click desde el BPM y los tiempos del compás. No es audio grabado.
 // Cada muestra se calcula directo desde la posición en la canción, sin ir sumando tiempos.
 // Por eso no se corre con los minutos y sigue en su lugar después de un salto.
+//
+// Conteo de entrada: el click empieza a sonar unos compases ANTES del primer tiempo,
+// para que el equipo entre a tiempo. Son compases enteros, así que el acento sigue
+// cayendo en el 1. Si antes del primer tiempo no hay lugar, suena lo que alcance.
 
 use std::f64::consts::TAU;
 
@@ -16,17 +20,23 @@ pub struct Click {
     tiempos_por_compas: u64,
     rate: f64,
     inicio: f64, // cuadro donde cae el primer tiempo de la canción
+    desde: f64,  // cuadro donde empieza a sonar: el inicio menos el conteo de entrada
 }
 
 impl Click {
     // `bpm` cuenta el pulso del compás: en 6/8 son corcheas, seis por compás.
-    pub fn new(bpm: f32, tiempos_por_compas: u32, rate: u32, inicio_segundos: f32) -> Self {
+    // `conteo` son los compases de entrada que suenan antes del primer tiempo.
+    pub fn new(bpm: f32, tiempos_por_compas: u32, rate: u32, inicio_segundos: f32, conteo: u32) -> Self {
         let rate = rate as f64;
+        let cuadros_por_tiempo = rate * 60.0 / bpm.max(1.0) as f64;
+        let tiempos_por_compas = tiempos_por_compas.max(1) as u64;
+        let inicio = inicio_segundos.max(0.0) as f64 * rate;
         Self {
-            cuadros_por_tiempo: rate * 60.0 / bpm.max(1.0) as f64,
-            tiempos_por_compas: tiempos_por_compas.max(1) as u64,
+            cuadros_por_tiempo,
+            tiempos_por_compas,
             rate,
-            inicio: inicio_segundos.max(0.0) as f64 * rate,
+            inicio,
+            desde: inicio - (conteo as u64 * tiempos_por_compas) as f64 * cuadros_por_tiempo,
         }
     }
 
@@ -39,11 +49,12 @@ impl Click {
     // Igual, pero a otra velocidad. El click cae donde toca en la canción, y su sonido
     // no se estira: dura lo mismo y suena igual aunque la canción vaya lenta.
     pub fn muestra_en(&self, posicion: f64, velocidad: f64) -> f32 {
-        let posicion = posicion - self.inicio;
-        if posicion < 0.0 {
+        if posicion < self.desde {
             return 0.0;
         }
 
+        // Antes del primer tiempo (en el conteo) `tiempo` es negativo: -4, -3, -2, -1.
+        let posicion = posicion - self.inicio;
         let tiempo = (posicion / self.cuadros_por_tiempo).floor();
         let inicio = tiempo * self.cuadros_por_tiempo;
         let segundos = (posicion - inicio) / self.rate / velocidad;
@@ -51,7 +62,7 @@ impl Click {
             return 0.0;
         }
 
-        let hz = if tiempo as u64 % self.tiempos_por_compas == 0 {
+        let hz = if (tiempo as i64).rem_euclid(self.tiempos_por_compas as i64) == 0 {
             HZ_ACENTO
         } else {
             HZ_TIEMPO
@@ -85,7 +96,7 @@ mod pruebas {
     #[test]
     fn no_se_corre_en_cinco_minutos() {
         let (bpm, rate) = (97.3f32, 48000u32);
-        let click = Click::new(bpm, 4, rate, 0.0);
+        let click = Click::new(bpm, 4, rate, 0.0, 0);
         let lista = inicios(&click, 300 * rate as u64);
 
         assert_eq!(lista.len(), (300.0 * bpm as f64 / 60.0).ceil() as usize);
@@ -98,7 +109,7 @@ mod pruebas {
     // Antes del inicio no suena nada, y el primer tiempo cae exacto en el inicio.
     #[test]
     fn empieza_en_el_punto_elegido() {
-        let click = Click::new(120.0, 4, 48000, 1.5);
+        let click = Click::new(120.0, 4, 48000, 1.5, 0);
         let lista = inicios(&click, 48000 * 5);
 
         assert_eq!(lista[0].abs_diff(72000), 1);
@@ -116,12 +127,39 @@ mod pruebas {
     #[test]
     fn acentua_el_primer_tiempo_de_cada_compas() {
         for tiempos in [4u32, 3, 6, 12] {
-            let click = Click::new(120.0, tiempos, 48000, 0.0);
+            let click = Click::new(120.0, tiempos, 48000, 0.0, 0);
             let lista = inicios(&click, 48000 * 20);
             for (numero, &cuadro) in lista.iter().enumerate() {
                 let esperado = numero as u32 % tiempos == 0;
                 assert_eq!(es_acento(&click, cuadro), esperado, "compás de {tiempos}");
             }
         }
+    }
+
+    // Con 1 compás de conteo en 3/4 a 120 BPM y el primer tiempo en 2 s, el click
+    // empieza 1,5 s antes (en 0,5 s), acentúa su 1 y sigue igual después.
+    #[test]
+    fn suena_el_conteo_antes_del_primer_tiempo() {
+        let rate = 48000u32;
+        let click = Click::new(120.0, 3, rate, 2.0, 1);
+        let lista = inicios(&click, rate as u64 * 4);
+
+        assert_eq!(lista[0].abs_diff(24000), 1, "empieza 1 compás antes");
+        assert_eq!(lista.len(), 7, "3 del conteo y 4 de la canción");
+        for (numero, &cuadro) in lista.iter().enumerate() {
+            assert_eq!(es_acento(&click, cuadro), numero % 3 == 0, "tiempo {numero}");
+        }
+    }
+
+    // Si no hay lugar para el conteo completo, suena lo que alcance desde el 0.
+    #[test]
+    fn el_conteo_se_corta_si_no_hay_lugar() {
+        let rate = 48000u32;
+        let click = Click::new(120.0, 4, rate, 0.5, 2);
+        let lista = inicios(&click, rate as u64);
+
+        assert!(lista[0] <= 1, "el tiempo que cae justo en el 0 suena");
+        assert_eq!(lista[1].abs_diff(24000), 1);
+        assert!(es_acento(&click, lista[1]), "el primer tiempo sigue acentuado");
     }
 }

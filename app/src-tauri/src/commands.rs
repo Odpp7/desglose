@@ -83,8 +83,14 @@ pub fn buscar(segundos: f64, motor: State<'_, Motor>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn click(bpm: f32, tiempos: u32, inicio: f32, motor: State<'_, Motor>) -> Result<(), String> {
-    motor.click(bpm, tiempos, inicio)
+pub fn click(
+    bpm: f32,
+    tiempos: u32,
+    inicio: f32,
+    conteo: u32,
+    motor: State<'_, Motor>,
+) -> Result<(), String> {
+    motor.click(bpm, tiempos, inicio, conteo)
 }
 
 #[tauri::command]

@@ -78,5 +78,22 @@ pub fn migraciones() -> Vec<Migration> {
             ",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "click de cada canción",
+            sql: "
+                -- Lo define el encargado. Sin BPM (NULL) la canción todavía no tiene click.
+                ALTER TABLE canciones ADD COLUMN bpm           REAL;
+                -- Tiempos por compás: 4 (4/4), 3 (3/4), 6 (6/8), 12 (12/8).
+                ALTER TABLE canciones ADD COLUMN compas        INTEGER NOT NULL DEFAULT 4;
+                -- Segundo de la canción donde cae el primer tiempo (el 1).
+                ALTER TABLE canciones ADD COLUMN inicio_click  REAL    NOT NULL DEFAULT 0;
+                -- Compases de entrada que suenan antes del primer tiempo.
+                ALTER TABLE canciones ADD COLUMN conteo        INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE canciones ADD COLUMN click_volumen REAL    NOT NULL DEFAULT 0.8;
+                ALTER TABLE canciones ADD COLUMN click_activo  INTEGER NOT NULL DEFAULT 1;
+            ",
+            kind: MigrationKind::Up,
+        },
     ]
 }

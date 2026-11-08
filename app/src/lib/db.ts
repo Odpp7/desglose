@@ -19,6 +19,16 @@ export type Cancion = {
   error: string | null;
   /** Tono original que escribe el encargado: "D", "Em", "F#"... */
   tono: string | null;
+  /** El click, que define el encargado. Sin BPM (null) todavía no hay click. */
+  bpm: number | null;
+  /** Tiempos por compás: 4 (4/4), 3 (3/4), 6 (6/8), 12 (12/8). */
+  compas: number;
+  /** Segundo donde cae el primer tiempo (el 1). */
+  inicio_click: number;
+  /** Compases de entrada antes del primer tiempo. */
+  conteo: number;
+  click_volumen: number;
+  click_activo: number;
 };
 
 export type EstadoCancion = "nueva" | "separando" | "lista" | "error";
@@ -117,6 +127,18 @@ export async function borrarCancion(id: number) {
 export async function cambiarTono(id: number, tono: string | null) {
   const db = await base();
   await db.execute("UPDATE canciones SET tono = $1 WHERE id = $2", [tono, id]);
+}
+
+/** Guarda el click de la canción (BPM, compás, primer tiempo, conteo, volumen, encendido). */
+export async function guardarClick(
+  id: number,
+  c: Pick<Cancion, "bpm" | "compas" | "inicio_click" | "conteo" | "click_volumen" | "click_activo">,
+) {
+  const db = await base();
+  await db.execute(
+    "UPDATE canciones SET bpm = $1, compas = $2, inicio_click = $3, conteo = $4, click_volumen = $5, click_activo = $6 WHERE id = $7",
+    [c.bpm, c.compas, c.inicio_click, c.conteo, c.click_volumen, c.click_activo, id],
+  );
 }
 
 export async function cambiarEstado(id: number, estado: EstadoCancion, error: string | null = null) {

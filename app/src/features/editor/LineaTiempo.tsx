@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { escucharEstado } from "../../lib/engine";
+import { segundosPorCompas, type Click } from "../../lib/click";
+import { escucharEstado, formatoTiempo } from "../../lib/engine";
 
 // La línea de tiempo: regla con los segundos, las ondas de todas las pistas en
 // UN solo canvas, y el cursor de reproducción.
@@ -7,9 +8,14 @@ import { escucharEstado } from "../../lib/engine";
 // Clic en la onda: salta a ese punto. En una pista propia, ARRASTRAR la mueve
 // en el tiempo (su desfase) para alinearla con la canción.
 //
+// Con click: rejilla de compases (líneas más claras, con su número en la regla) y
+// de tiempos (suaves), y el marcador "1" en la regla, que se ARRASTRA hasta el
+// primer golpe de la canción. Las líneas empiezan donde suena el click (con el conteo).
+//
 // Para la PC de la iglesia (procesador débil):
-//   - Las ondas se dibujan solo cuando cambia algo (llegan las ondas, se
-//     silencia una pista, se arrastra, cambia el tamaño). No 30 veces por segundo.
+//   - Las ondas y la rejilla se dibujan solo cuando cambia algo (llegan las
+//     ondas, se silencia una pista, se arrastra, cambia el tamaño o el click).
+//     No 30 veces por segundo.
 //   - El cursor es un <div> que se mueve con `transform` desde el aviso del
 //     motor, sin pasar por el estado de React.
 
@@ -37,12 +43,16 @@ type Props = {
   alSaltar: (segundos: number) => void;
   /** Se soltó una pista propia en otro lugar: su nuevo desfase en segundos. */
   alMover: (clave: string, desfase: number) => void;
+  /** El click, o `null` si la canción todavía no tiene BPM. */
+  click: Click | null;
+  /** Se soltó el marcador "1": el nuevo primer tiempo en segundos. */
+  alMoverInicio: (inicio: number) => void;
 };
 
 /** Píxeles que hay que mover el mouse para que cuente como arrastre y no como clic. */
 const UMBRAL_ARRASTRE = 4;
 
-export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover }: Props) {
+export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, click, alMoverInicio }: Props) {
   const caja = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const cursor = useRef<HTMLDivElement>(null);
@@ -50,6 +60,9 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover }: Pr
   const [ancho, setAncho] = useState(0);
   // Mientras se arrastra una pista: cuál y adónde va (solo para dibujarla ahí).
   const [arrastre, setArrastre] = useState<{ clave: string; desfase: number } | null>(null);
+  // Mientras se arrastra el marcador "1": dónde va el primer tiempo.
+  const [inicioArrastre, setInicioArrastre] = useState<number | null>(null);
+  const rejilla = click && inicioArrastre !== null ? { ...click, inicio: inicioArrastre } : click;
 
   // El ancho cambia al agrandar la ventana: se mide con ResizeObserver.
   useEffect(() => {
@@ -64,8 +77,9 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover }: Pr
     const dibujadas = arrastre
       ? filas.map((f) => (f.clave === arrastre.clave ? { ...f, desfase: arrastre.desfase } : f))
       : filas;
-    dibujarOndas(canvas.current, dibujadas, altoFila, ancho, duracion);
-  }, [filas, altoFila, ancho, duracion, arrastre]);
+    dibujarOndas(canvas.current, dibujadas, altoFila, ancho, duracion, rejilla);
+    // De la rejilla importan solo estos datos: el volumen del click no la cambia.
+  }, [filas, altoFila, ancho, duracion, arrastre, rejilla?.bpm, rejilla?.compas, rejilla?.inicio, rejilla?.conteo]);
 
   // Cursor y parte ya sonada: directo al DOM desde el aviso del motor.
   const anchoActual = useRef(0);
@@ -81,6 +95,29 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover }: Pr
       dejar.then((f) => f());
     };
   }, [duracion]);
+
+  // Arrastrar el "1". El mouse se sigue en toda la ventana hasta soltarlo.
+  function arrastrarInicio(evento: React.MouseEvent) {
+    evento.stopPropagation(); // no es un clic para saltar
+    if (!click || duracion <= 0 || ancho <= 0) return;
+    const segundosPorPixel = duracion / ancho;
+    const inicioX = evento.clientX;
+    let nuevo = click.inicio;
+    const alMoverMouse = (e: MouseEvent) => {
+      const s = click.inicio + (e.clientX - inicioX) * segundosPorPixel;
+      // Se redondea a milisegundos: es lo que se guarda.
+      nuevo = Math.round(Math.max(0, Math.min(duracion, s)) * 1000) / 1000;
+      setInicioArrastre(nuevo);
+    };
+    const alSoltar = () => {
+      window.removeEventListener("mousemove", alMoverMouse);
+      window.removeEventListener("mouseup", alSoltar);
+      setInicioArrastre(null);
+      if (nuevo !== click.inicio) alMoverInicio(nuevo);
+    };
+    window.addEventListener("mousemove", alMoverMouse);
+    window.addEventListener("mouseup", alSoltar);
+  }
 
   function alPresionar(evento: React.MouseEvent) {
     const rect = caja.current?.getBoundingClientRect();
@@ -122,15 +159,22 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover }: Pr
 
   return (
     <div ref={caja} onMouseDown={alPresionar} className="relative min-w-0 cursor-pointer select-none">
-      <Regla duracion={duracion} ancho={ancho} />
+      <Regla duracion={duracion} ancho={ancho} click={rejilla} />
       <canvas ref={canvas} className="block" style={{ height: filas.length * altoFila }} />
       <div ref={sombra} className="pointer-events-none absolute top-0 left-0 h-full bg-ink-0/35" style={{ width: 0 }} />
+      {rejilla && duracion > 0 && ancho > 0 && (
+        <MarcadorInicio
+          x={(rejilla.inicio / duracion) * ancho}
+          arrastrando={inicioArrastre !== null}
+          alPresionar={arrastrarInicio}
+        />
+      )}
       <div ref={cursor} className="pointer-events-none absolute top-0 left-0 h-full w-0.5 bg-fg will-change-transform">
         <div className="absolute -top-px -left-[5px] border-x-[6px] border-t-[7px] border-x-transparent border-t-fg" />
       </div>
-      {arrastre && (
+      {(arrastre || inicioArrastre !== null) && (
         <div className="pointer-events-none absolute top-1 right-2 rounded-md bg-accent px-2 py-0.5 font-mono text-[12px] font-semibold text-accent-ink">
-          {formatoDesfase(arrastre.desfase)}
+          {arrastre ? formatoDesfase(arrastre.desfase) : `1 en ${formatoTiempo(inicioArrastre ?? 0)}`}
         </div>
       )}
     </div>
@@ -142,22 +186,75 @@ export function formatoDesfase(segundos: number) {
   return `${segundos >= 0 ? "+" : "−"}${Math.abs(segundos).toFixed(3)} s`;
 }
 
-/** Marcas de tiempo, cada 5, 10, 15, 30 o 60 s según cuánto espacio haya. */
-function Regla({ duracion, ancho }: { duracion: number; ancho: number }) {
+/**
+ * El marcador "1": una banderita en la regla y una línea a lo alto de las pistas.
+ * Solo la banderita se agarra; la línea deja pasar los clics a la onda.
+ */
+function MarcadorInicio(props: { x: number; arrastrando: boolean; alPresionar: (e: React.MouseEvent) => void }) {
+  return (
+    <div
+      className="pointer-events-none absolute top-0 left-0 h-full w-px bg-accent/70"
+      style={{ transform: `translateX(${props.x}px)` }}
+    >
+      <div
+        onMouseDown={props.alPresionar}
+        title="Primer tiempo del click: arrástralo hasta el primer golpe de la canción"
+        className={`pointer-events-auto absolute top-0 left-0 grid h-[17px] w-[18px] cursor-ew-resize place-items-center rounded-r-md font-mono text-[11px] font-bold text-accent-ink ${
+          props.arrastrando ? "bg-fg" : "bg-accent hover:bg-fg"
+        }`}
+      >
+        1
+      </div>
+    </div>
+  );
+}
+
+/** Cada cuántos compases va una línea (o un número) para que no se amontonen. */
+function cadaCuantosCompases(pxPorCompas: number, minimoPx: number) {
+  return [1, 2, 4, 8, 16, 32, 64].find((n) => n * pxPorCompas >= minimoPx) ?? 128;
+}
+
+/** Píxeles mínimos entre números de compás en la regla. */
+const MINIMO_NUMEROS_PX = 26;
+
+/**
+ * Marcas de tiempo, cada 5, 10, 15, 30 o 60 s según cuánto espacio haya.
+ * Con click, abajo van los números de compás (1, 5, 9... según el espacio).
+ */
+function Regla({ duracion, ancho, click }: { duracion: number; ancho: number; click: Click | null }) {
   if (duracion <= 0 || ancho <= 0) return <div style={{ height: ALTO_REGLA }} className="border-b border-line" />;
   const paso = [5, 10, 15, 30, 60].find((s) => (s / duracion) * ancho >= 70) ?? 120;
   const marcas = [];
   for (let s = 0; s < duracion; s += paso) marcas.push(s);
 
+  const compases: { numero: number; x: number }[] = [];
+  const largoCompas = click ? segundosPorCompas(click) : 0;
+  if (click && largoCompas > 0) {
+    const cada = cadaCuantosCompases((largoCompas / duracion) * ancho, MINIMO_NUMEROS_PX);
+    for (let n = 0; click.inicio + n * largoCompas < duracion; n += cada) {
+      compases.push({ numero: n + 1, x: ((click.inicio + n * largoCompas) / duracion) * ancho });
+    }
+  }
+
   return (
-    <div style={{ height: ALTO_REGLA }} className="relative border-b border-line bg-ink-0">
+    <div style={{ height: ALTO_REGLA }} className="relative overflow-hidden border-b border-line bg-ink-0">
       {marcas.map((s) => (
         <span
           key={s}
-          className="absolute top-0 bottom-0 border-l border-line-2 pt-1.5 pl-1.5 font-mono text-[10.5px] text-fg-3"
+          className="absolute top-0 bottom-0 border-l border-line-2 pt-1 pl-1.5 font-mono text-[10.5px] text-fg-3"
           style={{ left: (s / duracion) * ancho }}
         >
           {Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}
+        </span>
+      ))}
+      {compases.map((c) => (
+        <span
+          key={c.numero}
+          className="absolute bottom-px pl-1 font-mono text-[9.5px] leading-none text-accent/70"
+          style={{ left: c.x }}
+        >
+          {/* El 1 ya lo muestra el marcador. */}
+          {c.numero === 1 ? "" : c.numero}
         </span>
       ))}
     </div>
@@ -167,7 +264,8 @@ function Regla({ duracion, ancho }: { duracion: number; ancho: number }) {
 /**
  * Dibuja todas las filas. Cada barra (2 px de ancho, cada 3 px) muestra el pico
  * más alto de su tramo. La raíz cuadrada hace visibles las partes suaves.
- * Cada pista empieza donde dice su desfase.
+ * Cada pista empieza donde dice su desfase. Detrás va la rejilla del click (o,
+ * sin click, una línea suave cada 30 segundos).
  */
 function dibujarOndas(
   lienzo: HTMLCanvasElement | null,
@@ -175,6 +273,7 @@ function dibujarOndas(
   altoFila: number,
   ancho: number,
   duracion: number,
+  click: Click | null,
 ) {
   if (!lienzo || ancho <= 0) return;
   const escala = window.devicePixelRatio || 1;
@@ -187,9 +286,11 @@ function dibujarOndas(
   g.setTransform(escala, 0, 0, escala, 0, 0);
   g.clearRect(0, 0, ancho, alto);
 
-  // Líneas suaves cada 30 segundos, como guía.
-  g.fillStyle = "#232a38";
-  if (duracion > 0) {
+  if (click?.bpm && duracion > 0) {
+    dibujarRejilla(g, click, ancho, alto, duracion);
+  } else if (duracion > 0) {
+    // Líneas suaves cada 30 segundos, como guía.
+    g.fillStyle = "#232a38";
     for (let s = 30; s < duracion; s += 30) g.fillRect(Math.round((s / duracion) * ancho), 0, 1, alto);
   }
 
@@ -199,8 +300,11 @@ function dibujarOndas(
     const arriba = i * altoFila;
     const centro = arriba + altoFila / 2;
     const maximo = altoFila / 2 - 10;
-    g.fillStyle = fila.movible ? "#141a26" : "transparent";
-    if (fila.movible) g.fillRect(0, arriba, ancho, altoFila);
+    if (fila.movible) {
+      // Fondo apenas distinto para la pista propia, sin tapar la rejilla.
+      g.fillStyle = "rgba(40, 52, 80, 0.25)";
+      g.fillRect(0, arriba, ancho, altoFila);
+    }
     g.fillStyle = "#232a38";
     g.fillRect(0, arriba + altoFila - 1, ancho, 1);
 
@@ -229,4 +333,37 @@ function dibujarOndas(
     }
     g.globalAlpha = 1;
   });
+}
+
+/** Píxeles mínimos entre líneas: más juntas serían un manchón. */
+const MINIMO_TIEMPOS_PX = 8;
+const MINIMO_COMPASES_PX = 6;
+
+/**
+ * Rejilla del click: una línea por compás (más clara) y, si caben, una por tiempo.
+ * Empieza donde empieza a sonar el click: el primer tiempo menos el conteo.
+ */
+function dibujarRejilla(g: CanvasRenderingContext2D, click: Click, ancho: number, alto: number, duracion: number) {
+  if (!click.bpm) return;
+  const pxPorSegundo = ancho / duracion;
+  const largoTiempo = 60 / click.bpm;
+  const largoCompas = largoTiempo * click.compas;
+  // Tiempos contados desde el 1 (0 = el primer tiempo; negativos = el conteo).
+  const primero = Math.max(-click.conteo * click.compas, Math.ceil(-click.inicio / largoTiempo));
+  const ultimo = Math.floor((duracion - click.inicio) / largoTiempo);
+  const conTiempos = largoTiempo * pxPorSegundo >= MINIMO_TIEMPOS_PX;
+  const cada = cadaCuantosCompases(largoCompas * pxPorSegundo, MINIMO_COMPASES_PX);
+  const resto = (a: number, b: number) => ((a % b) + b) % b; // como % pero sin negativos
+
+  for (let t = primero; t <= ultimo; t++) {
+    const x = Math.round((click.inicio + t * largoTiempo) * pxPorSegundo);
+    const esCompas = resto(t, click.compas) === 0;
+    if (esCompas && resto(Math.floor(t / click.compas), cada) === 0) {
+      g.fillStyle = t < 0 ? "#273049" : "#303d62"; // el conteo, un poco más tenue
+      g.fillRect(x, 0, 1, alto);
+    } else if (conTiempos) {
+      g.fillStyle = "#1b2231";
+      g.fillRect(x, 0, 1, alto);
+    }
+  }
 }

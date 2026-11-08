@@ -36,9 +36,13 @@ export const motor = {
   play: () => invoke<void>("play"),
   pausa: () => invoke<void>("pausa"),
   buscar: (segundos: number) => invoke<void>("buscar", { segundos }),
-  /** El click es una pista más, con índice = cantidad de pistas. */
-  click: (bpm: number, tiempos: number, inicio: number) =>
-    invoke<void>("click", { bpm, tiempos, inicio }),
+  /**
+   * El click es una pista más, con índice = cantidad de pistas (su volumen y su
+   * mute van por `volumen` y `mute`). `inicio`: segundo del primer tiempo;
+   * `conteo`: compases que suenan antes.
+   */
+  click: (bpm: number, tiempos: number, inicio: number, conteo: number) =>
+    invoke<void>("click", { bpm, tiempos, inicio, conteo }),
   estudio: (velocidad: number, semitonos: number) =>
     invoke<void>("estudio", { velocidad, semitonos }),
   exportar: () => invoke<string>("exportar"),

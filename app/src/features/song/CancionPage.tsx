@@ -5,11 +5,13 @@ import { IconoNota } from "../../components/icons";
 import { hayClaveMvsep } from "../../lib/ajustes";
 import { extension } from "../../lib/archivos";
 import { avisarCambio, useVersion } from "../../lib/cambios";
+import { useClick } from "../../lib/click";
 import { cambiarTono, listarPistas, obtenerCancion, type Cancion, type Pista } from "../../lib/db";
 import { formatoDuracion } from "../../lib/formato";
 import { crearSecuencia, useAvance } from "../../lib/secuencia";
 import { recordarCancion } from "../../lib/sesion";
 import { Editor } from "../editor/Editor";
+import { DatoBpm } from "../editor/EditorClick";
 import { BotonCancelar, BotonesSeparar, EstadoFila, FaltaClave, Progreso } from "./Separacion";
 import { SelectorTono } from "./SelectorTono";
 
@@ -18,11 +20,13 @@ import { SelectorTono } from "./SelectorTono";
 //   ┌ SEPARAR [Voz líder y coros] [Guitarras] [Synth] ─────┬ CANCIÓN ─────────┐
 //   │ Opcional: cada una hace la fila aparte                │ Yo soy la ofrenda │
 //   └──────────────────────────────────────────────────────┴──────────────────┘
-//   TONALIDAD —  │  BPM —  │  DURACIÓN 4:55  │  PISTAS 7  │   ✓ Separar · 2 Click …
+//   TONALIDAD —  │  BPM 72 4/4  │  DURACIÓN 4:55  │  PISTAS 7  │   ✓ Separar · 2 Click …
 //   (editor: pistas, ondas y transporte)
 //
 // Si la canción todavía no está separada, debajo va "Crear secuencia", el
 // avance o el error. Al abrirla queda como "última canción".
+//
+// El click vive aquí (`useClick`): lo cambian el panel del BPM y el editor.
 
 export function CancionPage() {
   const id = Number(useParams().id);
@@ -30,6 +34,7 @@ export function CancionPage() {
   const [pistas, setPistas] = useState<Pista[]>([]);
   const [hayClave, setHayClave] = useState(true);
   const version = useVersion();
+  const [click, cambiarClick] = useClick(cancion);
 
   // Se vuelve a leer si algo cambia en la biblioteca (renombrar, terminar de separar...).
   useEffect(() => {
@@ -44,8 +49,8 @@ export function CancionPage() {
     hayClaveMvsep().then(setHayClave, () => setHayClave(false));
   }, [id, version]);
 
-  if (cancion === undefined) return null;
-  if (cancion === null) {
+  if (cancion === undefined || (cancion && !click)) return null;
+  if (cancion === null || !click) {
     return <p className="p-8 text-center text-fg-3">Esta canción ya no existe. Elige otra en la biblioteca.</p>;
   }
 
@@ -95,15 +100,15 @@ export function CancionPage() {
             alElegir={(tono) => cambiarTono(cancion.id, tono).then(avisarCambio)}
           />
         </div>
-        <Dato titulo="BPM" valor="—" ayuda="Se define en el paso 5 (Click)" />
+        {lista ? <DatoBpm click={click} alCambiar={cambiarClick} /> : <Dato titulo="BPM" valor="—" />}
         <Dato titulo="Duración" valor={formatoDuracion(cancion.duracion_ms)} />
         <Dato titulo="Pistas" valor={lista ? String(suenan) : "—"} />
-        <Pasos lista={lista} />
+        <Pasos hechos={[lista, lista && click.bpm !== null]} />
       </div>
 
       {lista ? (
         // `key`: al abrir otra canción, el editor empieza de cero (velocidad y tono normales).
-        <Editor key={cancion.id} cancion={cancion} pistas={pistas} />
+        <Editor key={cancion.id} cancion={cancion} pistas={pistas} click={click} alCambiarClick={cambiarClick} />
       ) : (
         <div className="flex-1 overflow-auto">
           {cancion.estado === "nueva" && <SinSecuencia id={id} hayClave={hayClave} />}
@@ -126,17 +131,19 @@ function Dato({ titulo, valor, ayuda }: { titulo: string; valor: string; ayuda?:
 }
 
 /**
- * Los pasos para dejar lista una secuencia. Por ahora solo "Separar" se puede
- * completar; los demás llegan en los pasos 5 a 8 de la Fase 1.
+ * Los pasos para dejar lista una secuencia. Por ahora se pueden completar
+ * "Separar" y "Click"; los demás llegan en los pasos 6 a 8 de la Fase 1.
+ * `hechos` dice cuáles ya están, en orden. El actual es el primero sin hacer.
  * El nombre de cada uno aparece al pasar el mouse.
  */
-function Pasos({ lista }: { lista: boolean }) {
+function Pasos({ hechos }: { hechos: boolean[] }) {
   const pasos = ["Separar", "Click", "Secciones", "Voz guía", "Exportar"];
+  const primeroSinHacer = pasos.findIndex((_, i) => !hechos[i]);
   return (
     <ol aria-label="Pasos de la secuencia" className="m-0 ml-auto flex list-none items-center gap-1 px-4 py-0">
       {pasos.map((paso, i) => {
-        const hecho = i === 0 && lista;
-        const actual = (i === 0 && !lista) || (i === 1 && lista);
+        const hecho = !!hechos[i];
+        const actual = i === primeroSinHacer;
         return (
           <li key={paso} title={paso} className="flex items-center gap-1">
             {i > 0 && <span className="h-px w-3 bg-line-2" />}

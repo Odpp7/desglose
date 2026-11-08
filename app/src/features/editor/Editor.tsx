@@ -4,6 +4,7 @@ import { Confirmar } from "../../components/Confirmar";
 import { IconoMas } from "../../components/icons";
 import { FORMATOS, borrarPistaPropia, copiarPistaPropia, sinExtension } from "../../lib/archivos";
 import { avisarCambio } from "../../lib/cambios";
+import type { Click } from "../../lib/click";
 import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
@@ -23,6 +24,8 @@ import { Transporte, type Estudio } from "./Transporte";
 //
 // La mezcla (volumen, M, S, R) y el desfase de las pistas propias se guardan en
 // SQLite: siguen igual al cerrar y abrir la app.
+// El click llega de la página de la canción: aquí se le pasa al motor (es la
+// última "pista"), se dibuja su rejilla y se arrastra su primer tiempo.
 // Al entrar, carga las pistas en el motor. Si el motor ya las tenía igual (se
 // abrió otra cosa y se volvió), no las recarga: sigue en el mismo punto.
 
@@ -30,6 +33,8 @@ type Props = {
   cancion: Cancion;
   /** Las pistas según SQLite (separadas y propias), en orden. */
   pistas: Pista[];
+  click: Click;
+  alCambiarClick: (cambio: Partial<Click>) => void;
 };
 
 /** Alto mínimo de una pista: si hay muchas, aparece la barra de desplazamiento. */
@@ -37,7 +42,7 @@ const ALTO_MINIMO = 64;
 /** Espera antes de guardar el volumen en SQLite mientras se mueve el fader. */
 const ESPERA_GUARDAR_MS = 400;
 
-export function Editor({ cancion, pistas: desdeBase }: Props) {
+export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Props) {
   const id = cancion.id;
   // Copia local para que el fader responda al instante; se guarda en SQLite aparte.
   const [pistas, setPistas] = useState<Pista[]>(desdeBase);
@@ -87,6 +92,8 @@ export function Editor({ cancion, pistas: desdeBase }: Props) {
   );
   const claveCarga = JSON.stringify(carga);
   const cargadaAntes = useRef(false);
+  // Sube cada vez que el motor termina de cargar: el click se le vuelve a pasar.
+  const [cargas, setCargas] = useState(0);
 
   useEffect(() => {
     let vigente = true;
@@ -106,13 +113,13 @@ export function Editor({ cancion, pistas: desdeBase }: Props) {
           await motor.mute(i, !!p.mute);
           await motor.solo(i, !!p.solo);
         }
-        // El click (después de las pistas) queda callado hasta el paso 5.
-        await motor.mute(desdeBase.length, true);
         if (volver && volver.posicion > 0) {
           await motor.buscar(volver.posicion);
           if (volver.reproduciendo) await motor.play();
         }
       }
+
+      setCargas((n) => n + 1);
 
       // Las ondas que falten, una por una: la primera vez cada una tarda un momento.
       for (const p of desdeBase) {
@@ -128,6 +135,17 @@ export function Editor({ cancion, pistas: desdeBase }: Props) {
     };
     // `carga` y `desdeBase` cambian juntos con `claveCarga`.
   }, [id, claveCarga]);
+
+  // El click va al motor cada vez que cambia, o cuando el motor recargó las pistas
+  // (al recargar, el motor vuelve a su click de fábrica). Sin BPM, queda callado.
+  useEffect(() => {
+    if (cargas === 0) return;
+    const indice = desdeBase.length;
+    const fallo = (e: unknown) => setError(String(e));
+    motor.click(click.bpm ?? 120, click.compas, click.inicio, click.conteo).catch(fallo);
+    motor.volumen(indice, click.volumen).catch(fallo);
+    motor.mute(indice, !(click.activo && click.bpm !== null)).catch(fallo);
+  }, [click, cargas]);
 
   // Guardar el volumen en SQLite se espera un momento (el fader manda muchos cambios).
   const esperas = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -268,6 +286,8 @@ export function Editor({ cancion, pistas: desdeBase }: Props) {
             duracion={duracion}
             alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
             alMover={alMover}
+            click={click.bpm !== null ? click : null}
+            alMoverInicio={(inicio) => alCambiarClick({ inicio })}
           />
         </div>
       </div>
@@ -276,6 +296,8 @@ export function Editor({ cancion, pistas: desdeBase }: Props) {
         duracion={duracion}
         estudio={estudio}
         tono={cancion.tono}
+        click={click}
+        alCambiarClick={alCambiarClick}
         alCambiarEstudio={cambiarEstudio}
         alError={setError}
       />

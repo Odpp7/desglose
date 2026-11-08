@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { IconoInicio, IconoPausa, IconoPlay } from "../../components/icons";
+import type { Click } from "../../lib/click";
 import { escucharEstado, formatoTiempo, motor } from "../../lib/engine";
 import { formatoSemitonos, transponer } from "../../lib/tonos";
 
 // Barra de abajo, por bloques con título (como en la captura de referencia):
 //   TRANSPORTE · POSICIÓN · VELOCIDAD · TONALIDAD · CLICK · Exportar
-// Funcionan Transporte, Posición, Velocidad y Tonalidad. Click y Exportar ya están
-// en su lugar, apagados, y se encienden en su paso (5: click, 8: exportar).
+// Exportar está en su lugar, apagado, y se enciende en el paso 8.
 //
 // Velocidad y Tonalidad cambian lo que se ESCUCHA (para ensayar o cantar en otro
-// tono). El click no cambia de tono. Exportar en otro tono llega en el paso 8.
+// tono). El click sigue a la velocidad pero no cambia de tono ni de sonido.
+// Exportar en otro tono llega en el paso 8.
+//
+// Click: encenderlo o apagarlo y su volumen. El BPM, el compás y el primer tiempo
+// se definen arriba, en "BPM" de la fila de datos.
 //
 // La barra espaciadora reproduce o pausa (salvo mientras se escribe en un campo).
 // El tiempo se escribe directo en el texto, sin pasar por el estado de React.
@@ -22,6 +26,8 @@ type Props = {
   estudio: Estudio;
   /** Tono original de la canción, para mostrar "A → B (+2)". */
   tono: string | null;
+  click: Click;
+  alCambiarClick: (cambio: Partial<Click>) => void;
   alCambiarEstudio: (estudio: Estudio) => void;
   alError: (e: string) => void;
 };
@@ -30,7 +36,7 @@ const VELOCIDAD_MINIMA = 0.5;
 const VELOCIDAD_MAXIMA = 1.5;
 const SEMITONOS_MAXIMOS = 6;
 
-export function Transporte({ duracion, estudio, tono, alCambiarEstudio, alError }: Props) {
+export function Transporte({ duracion, estudio, tono, click, alCambiarClick, alCambiarEstudio, alError }: Props) {
   const [reproduciendo, setReproduciendo] = useState(false);
   const tiempo = useRef<HTMLSpanElement>(null);
   const sonando = useRef(false);
@@ -146,8 +152,26 @@ export function Transporte({ duracion, estudio, tono, alCambiarEstudio, alError 
         </Paso>
       </Bloque>
 
-      <Bloque titulo="Click" apagado="Llega en el paso 5">
-        <Segmentos opciones={["Apagado"]} elegido={0} />
+      <Bloque titulo="Click" apagado={click.bpm === null ? "Primero define el BPM, arriba en la fila de datos" : undefined}>
+        <Segmentos
+          opciones={["Apagado", "Encendido"]}
+          elegido={click.activo && click.bpm !== null ? 1 : 0}
+          deshabilitado={click.bpm === null}
+          alElegir={(i) => alCambiarClick({ activo: i === 1 })}
+        />
+        <input
+          type="range"
+          min={0}
+          max={1.5}
+          step={0.01}
+          value={click.volumen}
+          disabled={click.bpm === null}
+          onChange={(e) => alCambiarClick({ volumen: Number(e.target.value) })}
+          onDoubleClick={() => alCambiarClick({ volumen: 0.8 })}
+          aria-label="Volumen del click"
+          title="Volumen del click (doble clic: volver al normal)"
+          className="w-20 accent-[#8ea2ff]"
+        />
       </Bloque>
 
       <div className="ml-auto flex items-center pr-2">
@@ -200,16 +224,29 @@ function Paso(props: {
   );
 }
 
-function Segmentos({ opciones, elegido }: { opciones: string[]; elegido: number }) {
+function Segmentos(props: {
+  opciones: string[];
+  elegido: number;
+  deshabilitado: boolean;
+  alElegir: (indice: number) => void;
+}) {
   return (
     <div className="flex overflow-hidden rounded-lg border border-line">
-      {opciones.map((o, i) => (
-        <span
+      {props.opciones.map((o, i) => (
+        <button
           key={o}
-          className={`px-2.5 py-1.5 font-mono text-[12px] ${i === elegido ? "bg-ink-3 text-fg" : "bg-ink-2 text-fg-3"}`}
+          disabled={props.deshabilitado}
+          onClick={() => props.alElegir(i)}
+          className={`px-2.5 py-1.5 font-mono text-[12px] ${
+            i === props.elegido
+              ? i === 0
+                ? "bg-ink-3 text-fg"
+                : "bg-[#22305e] text-accent"
+              : "bg-ink-2 text-fg-3 hover:text-fg-2"
+          }`}
         >
           {o}
-        </span>
+        </button>
       ))}
     </div>
   );
