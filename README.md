@@ -17,7 +17,6 @@ Una especie de Moises para equipos de alabanza, gratis. App de escritorio para W
 - [`docs/especificacion.md`](docs/especificacion.md) — qué hace la app y cómo.
 - [`docs/decisiones.md`](docs/decisiones.md) — decisiones tomadas y por qué.
 - [`docs/fase-1.md`](docs/fase-1.md) — plan de la app real y lo aprendido.
-- [`docs/fase-0.md`](docs/fase-0.md) — pruebas antes de construir.
 - [`docs/voces-guia.md`](docs/voces-guia.md) — cómo funcionan las guías y reglas de la app.
 
 ## Costo

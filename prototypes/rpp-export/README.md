@@ -6,4 +6,4 @@ Objetivo: a partir de una carpeta de WAV + tempo + lista de secciones, escribir 
 
 Comparar el resultado con la secuencia de referencia del encargado (`samples/referencia/`).
 
-Detalle en `docs/fase-0.md` y formato en `docs/especificacion.md` (sección 11).
+Formato en `docs/especificacion.md` (sección 11).

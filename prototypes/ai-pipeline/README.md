@@ -5,7 +5,7 @@ Fase 0, paso 3. Python 3.11 con uv. Primero cada etapa en local con una canción
 Probar con las canciones de `samples/`:
 
 - Separación: `audio-separator` con BS-RoFormer-SW vs Demucs `htdemucs_6s`
-- Tiempos y compases: Beat This!
+- Tiempos y compases: Beat This! (descartado: el click lo define el encargado)
 - Secciones: SongFormer vs All-In-One
 - Acordes: BTC
 - Letra: faster-whisper

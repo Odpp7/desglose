@@ -22,7 +22,7 @@ Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
 - **Revisar el diseño sin pedirle capturas a Oscar:** con PowerShell y `PrintWindow` (user32) se captura solo la ventana de Desglose a un PNG y se mira. Si mide 160×28, está minimizada.
 - **Leer la base desde fuera:** `%APPDATA%\com.desglose.app\desglose.db`. Abrirla con una conexión normal (no `mode=ro`): los cambios recientes están en el archivo `-wal` y en solo lectura no se ven.
 - **Scripts largos en la terminal:** un `python - <<EOF` con mucho texto a veces falla o lo bloquea el chequeo de seguridad. Mejor escribir el script en un archivo y correrlo.
-- **La clave de MVSep** ya se pega en Ajustes (`%APPDATA%\com.desglose.app\clave-mvsep.txt`). La copia vieja en `prototypes/ai-pipeline/.env` se va con ese prototipo en el paso 6.
+- **La clave de MVSep** ya se pega en Ajustes (`%APPDATA%\com.desglose.app\clave-mvsep.txt`). La copia vieja en `prototypes/ai-pipeline/.env` ya se borró.
 
 ## Antes de empezar
 
@@ -118,7 +118,7 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 | --- | --- | --- |
 | ~~`prototypes/audio-engine/`~~ | Motor y órdenes de Tauri | Ya en `app/src-tauri/` (paso 1) |
 | `prototypes/rpp-export/src/rpp.rs` | Escritor de `.RPP` | `app/src-tauri/src/export/rpp.rs` |
-| `prototypes/ai-pipeline/mvsep.py` | Cadena de MVSep | Pasarla a Rust, en la app |
+| ~~`prototypes/ai-pipeline/mvsep.py`~~ | Cadena de MVSep | Ya en Rust (paso 3) |
 | `prototypes/ai-pipeline/secciones.py` | SongFormer en Modal | `backend/`, como una función web |
 | `prototypes/ai-pipeline/separar.py` | Respaldo con BS-RoFormer-SW | `backend/` |
 | `prototypes/voice-piper/generar.py` | Colocación de la voz y conteo | Lógica para `guide.rs` |
@@ -126,7 +126,7 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 
 Las frases son `.wav`, que `.gitignore` ignora, y están en `out/`, que también se ignora. **Al moverlas a la app hay que agregar una excepción en `.gitignore`**, o no llegarán a git.
 
-Las pruebas que no sirvieron quedan en el historial de git como referencia: `probar_mega.py`, `paneo.py`, `ritmo.py` y `scripts/combinar.ps1`.
+Las pruebas que no sirvieron y `mvsep.py` (ya en Rust) se borraron el 8 de noviembre; quedan en el historial de git: `probar_mega.py`, `paneo.py`, `ritmo.py` y `scripts/combinar.ps1`. También se borró `docs/fase-0.md`.
 
 ## Limpieza
 
@@ -142,9 +142,9 @@ Las pruebas que no sirvieron quedan en el historial de git como referencia: `pro
 Cuidado antes de borrar: hay cosas que **no están en git** y se perderían para siempre:
 
 - Las 34 frases de `prototypes/voice-piper/out/` (los `.wav` se ignoran). Moverlas a la app primero.
-- La clave de MVSep en `prototypes/ai-pipeline/.env`. Moverla a donde se decida en el paso 3.
+- ~~La clave de MVSep en `prototypes/ai-pipeline/.env`~~: borrada; la app la guarda en Ajustes.
 
-También se borra lo que deje de usarse dentro de la app y los documentos que queden viejos (por ejemplo `docs/fase-0.md`, cuando ya no sirva de referencia). `samples/` se queda: son las canciones de prueba y no se suben a git.
+También se borra lo que deje de usarse dentro de la app y los documentos que queden viejos (como `docs/fase-0.md`, borrado en el paso 5). `samples/` se queda: son las canciones de prueba y no se suben a git.
 
 ## Lo aprendido
 
@@ -182,7 +182,7 @@ También se borra lo que deje de usarse dentro de la app y los documentos que qu
 
 ## Claves
 
-- La clave de MVSep está en `prototypes/ai-pipeline/.env`, que no se sube a git. Oscar la cambiará después. Nunca escribirla en código ni en documentos.
+- La clave de MVSep está solo en Ajustes de la app. Se vio en una captura el 7 de noviembre: Oscar debe cambiarla. Nunca escribirla en código ni en documentos.
 - En la app, la clave de MVSep la pega el encargado en Ajustes y se guarda en `%APPDATA%\com.desglose.app\clave-mvsep.txt`. La interfaz nunca la lee: solo sabe si hay una.
 - La cuenta de Modal es `odpp7`, y su configuración está en `~/.modal.toml`.
 

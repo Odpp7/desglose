@@ -48,7 +48,7 @@ El proyecto está en `C:\Users\PC\Desktop\PROYECTOS\desglose` y en GitHub (`Odpp
 
 Abre la carpeta con Claude Code y escribe como primer mensaje:
 
-> Lee CLAUDE.md y docs/fase-0.md. Vamos con el sub-paso 1a de la Fase 0. Muéstrame el plan antes de escribir código.
+> Lee CLAUDE.md, docs/fase-1.md y docs/decisiones.md. Muéstrame el plan del paso que sigue antes de escribir código.
 
 ## Comprobación
 
