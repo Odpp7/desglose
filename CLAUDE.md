@@ -78,7 +78,6 @@ desglose/
   backend/             # lo que corre en Modal (uv): proponer secciones con SongFormer
   prototypes/          # pruebas de la Fase 0; se borran al pasar a la app
     rpp-export/        # generar un .RPP y abrirlo en REAPER
-    voice-piper/       # paquete de voz en español
   samples/             # canciones de prueba (NO se suben a git)
 ```
 

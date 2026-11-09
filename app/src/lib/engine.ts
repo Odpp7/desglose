@@ -47,6 +47,9 @@ export const motor = {
   guia: (avisos: [number, string][]) => invoke<void>("guia", { avisos }),
   /** Las frases que tiene la voz guía, con los segundos que dura cada una. */
   frasesGuia: async () => new Map(await invoke<[string, number][]>("frases_guia")),
+  frasesGuiaRestaurables: () => invoke<string[]>("frases_guia_restaurables"),
+  guardarFraseGuia: (nombre: string, wav: number[]) => invoke<void>("guardar_frase_guia", { nombre, wav }),
+  restaurarFraseGuia: (nombre: string) => invoke<void>("restaurar_frase_guia", { nombre }),
   estudio: (velocidad: number, semitonos: number) =>
     invoke<void>("estudio", { velocidad, semitonos }),
   exportar: () => invoke<string>("exportar"),

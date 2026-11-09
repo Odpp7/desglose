@@ -258,7 +258,7 @@ pub struct Estado {
 pub struct Motor {
     sesion: Mutex<Option<Sesion>>,
     /// Las frases de la voz guía. Se cargan una vez al abrir la app.
-    banco: Mutex<Arc<Banco>>,
+    banco: Mutex<Banco>,
 }
 
 impl Motor {
@@ -320,7 +320,18 @@ impl Motor {
     }
 
     pub fn fijar_banco(&self, banco: Banco) {
-        *self.banco.lock().unwrap() = Arc::new(banco);
+        *self.banco.lock().unwrap() = banco;
+    }
+
+    pub fn editar_banco(
+        &self,
+        editar: impl FnOnce(&mut Banco) -> Result<(), String>,
+    ) -> Result<(), String> {
+        editar(&mut self.banco.lock().unwrap())
+    }
+
+    pub fn frases_restaurables(&self) -> Vec<String> {
+        self.banco.lock().unwrap().restaurables()
     }
 
     /// Las frases que tiene la voz guía: nombre y segundos que dura.

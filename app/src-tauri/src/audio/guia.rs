@@ -11,21 +11,26 @@
 // la frase cae donde toca en la canción, pero su sonido no se estira ni cambia de
 // tono: "Coro" se oye igual a 75% que a 100%.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
 
 /// Frecuencia de las frases grabadas con Piper.
 const RATE_FRASES: f64 = 22_050.0;
 /// Por debajo de esto se considera silencio al recortar los extremos.
 const UMBRAL_SILENCIO: f32 = 400.0 / 32_768.0;
 const VOLUMEN: f32 = 0.9;
+const MAX_BYTES: usize = 4 * 1024 * 1024;
+const MAX_SEGUNDOS: u32 = 10;
 
 /// Las frases disponibles, por nombre ("Coro 1", "2", "Última vez").
 #[derive(Default)]
 pub struct Banco {
     nombres: HashMap<String, usize>,
     clips: Vec<Vec<f32>>,
+    originales: HashSet<String>,
+    propias: HashSet<String>,
 }
 
 impl Banco {
@@ -43,10 +48,70 @@ impl Banco {
                 continue;
             };
             let clip = leer_recortado(&ruta)?;
-            banco.nombres.insert(nombre.to_string(), banco.clips.len());
-            banco.clips.push(clip);
+            banco.originales.insert(nombre.to_owned());
+            banco.poner(nombre, clip);
         }
         Ok(banco)
+    }
+
+    fn poner(&mut self, nombre: &str, clip: Vec<f32>) {
+        if let Some(&indice) = self.nombres.get(nombre) {
+            self.clips[indice] = clip;
+        } else {
+            self.nombres.insert(nombre.to_owned(), self.clips.len());
+            self.clips.push(clip);
+        }
+    }
+
+    pub fn cargar_propias(&mut self, carpeta: &Path) {
+        let Ok(archivos) = fs::read_dir(carpeta) else { return };
+        for archivo in archivos.flatten() {
+            let ruta = archivo.path();
+            if ruta.extension().and_then(|e| e.to_str()) != Some("wav") {
+                continue;
+            }
+            let Some(nombre) = ruta.file_stem().and_then(|s| s.to_str()).and_then(decodificar_nombre) else {
+                continue;
+            };
+            match leer_propia(&ruta) {
+                Ok(clip) => {
+                    self.poner(&nombre, clip);
+                    self.propias.insert(nombre);
+                }
+                Err(error) => eprintln!("No se pudo cargar la frase {nombre}: {error}"),
+            }
+        }
+    }
+
+    pub fn restaurables(&self) -> Vec<String> {
+        self.originales.intersection(&self.propias).cloned().collect()
+    }
+
+    pub fn guardar_propia(&mut self, carpeta: &Path, nombre: &str, wav: &[u8]) -> Result<(), String> {
+        let ruta = ruta_propia(carpeta, nombre)?;
+        if !self.propias.contains(nombre) && self.propias.len() >= 100 {
+            return Err("Ya tienes 100 frases propias.".into());
+        }
+        let clip = preparar_wav(wav)?;
+        fs::create_dir_all(carpeta).map_err(error_guardado)?;
+        let temporal = ruta.with_extension("tmp");
+        fs::write(&temporal, wav).map_err(error_guardado)?;
+        fs::rename(&temporal, &ruta).map_err(error_guardado)?;
+        self.poner(nombre, clip);
+        self.propias.insert(nombre.to_owned());
+        Ok(())
+    }
+
+    pub fn restaurar(&mut self, carpeta: &Path, originales: &Path, nombre: &str) -> Result<(), String> {
+        let ruta = ruta_propia(carpeta, nombre)?;
+        if !self.originales.contains(nombre) || !self.propias.contains(nombre) {
+            return Err("Esta frase no tiene una versión original para restaurar.".into());
+        }
+        let clip = leer_recortado(&originales.join(format!("{nombre}.wav")))?;
+        fs::remove_file(ruta).map_err(error_guardado)?;
+        self.poner(nombre, clip);
+        self.propias.remove(nombre);
+        Ok(())
     }
 
     /// Las frases (nombre y segundos que dura), en orden alfabético.
@@ -71,6 +136,73 @@ impl Banco {
     }
 }
 
+fn error_guardado(error: std::io::Error) -> String {
+    format!("No se pudo guardar el cambio de voz guía: {error}")
+}
+
+// El nombre visible se codifica para que la ruta sea válida incluso con
+// acentos y nombres reservados de Windows, y para distinguir mayúsculas.
+fn ruta_propia(carpeta: &Path, nombre: &str) -> Result<PathBuf, String> {
+    if nombre.is_empty() || nombre.len() > 100 || nombre.trim() != nombre || nombre.chars().any(char::is_control) {
+        return Err("Escribe un nombre de frase válido de hasta 100 bytes.".into());
+    }
+    let codigo: String = nombre.bytes().map(|b| format!("{b:02x}")).collect();
+    Ok(carpeta.join(format!("{codigo}.wav")))
+}
+
+fn decodificar_nombre(codigo: &str) -> Option<String> {
+    if codigo.len() % 2 != 0 || !codigo.is_ascii() {
+        return None;
+    }
+    let bytes = (0..codigo.len()).step_by(2)
+        .map(|i| u8::from_str_radix(&codigo[i..i + 2], 16))
+        .collect::<Result<Vec<_>, _>>().ok()?;
+    String::from_utf8(bytes).ok()
+}
+
+fn leer_propia(ruta: &Path) -> Result<Vec<f32>, String> {
+    if fs::metadata(ruta).map_err(error_guardado)?.len() > MAX_BYTES as u64 {
+        return Err("El WAV debe pesar como máximo 4 MB.".into());
+    }
+    preparar_wav(&fs::read(ruta).map_err(error_guardado)?)
+}
+
+fn preparar_wav(wav: &[u8]) -> Result<Vec<f32>, String> {
+    if wav.len() > MAX_BYTES {
+        return Err("El WAV debe pesar como máximo 4 MB.".into());
+    }
+    let invalido = |e| format!("No se pudo leer el WAV: {e}");
+    let mut lector = hound::WavReader::new(Cursor::new(wav)).map_err(invalido)?;
+    let spec = lector.spec();
+    if !(1..=2).contains(&spec.channels) || !(8_000..=192_000).contains(&spec.sample_rate) {
+        return Err("Usa un WAV mono o estéreo entre 8 y 192 kHz.".into());
+    }
+    if lector.duration() > spec.sample_rate * MAX_SEGUNDOS {
+        return Err("La frase debe durar como máximo 10 segundos.".into());
+    }
+    let muestras = match spec.sample_format {
+        hound::SampleFormat::Int => {
+            let escala = 2_f32.powi(i32::from(spec.bits_per_sample) - 1);
+            lector.samples::<i32>().map(|m| m.map(|m| m as f32 / escala)).collect::<Result<Vec<_>, _>>()
+        }
+        hound::SampleFormat::Float => lector.samples::<f32>().collect::<Result<Vec<_>, _>>(),
+    }.map_err(invalido)?;
+    let canales = usize::from(spec.channels);
+    let mono: Vec<_> = muestras.chunks_exact(canales).map(|cuadro| {
+        cuadro.iter().copied().filter(|m| m.is_finite()).sum::<f32>() / canales as f32
+    }).collect();
+    let paso = f64::from(spec.sample_rate) / RATE_FRASES;
+    let total = (mono.len() as f64 / paso).floor() as usize;
+    let convertido: Vec<_> = (0..total)
+        .map(|i| muestra_interpolada(&mono, i as f64 * paso).clamp(-1.0, 1.0))
+        .collect();
+    let clip = recortar(&convertido);
+    if clip.len() < 2 {
+        return Err("No se detectó audio en la frase. Prueba una grabación más fuerte.".into());
+    }
+    Ok(clip)
+}
+
 /// Lee un WAV de 16 bits mono y le quita el silencio de los extremos: la frase
 /// tiene que empezar justo en el tiempo, no unos milisegundos después.
 fn leer_recortado(ruta: &Path) -> Result<Vec<f32>, String> {
@@ -80,9 +212,13 @@ fn leer_recortado(ruta: &Path) -> Result<Vec<f32>, String> {
         .map(|m| m.map(|m| m as f32 / 32_768.0))
         .collect::<Result<_, _>>()
         .map_err(|e| format!("No se pudo leer {ruta:?}: {e}"))?;
+    Ok(recortar(&muestras))
+}
+
+fn recortar(muestras: &[f32]) -> Vec<f32> {
     let inicio = muestras.iter().position(|m| m.abs() > UMBRAL_SILENCIO).unwrap_or(0);
     let fin = muestras.iter().rposition(|m| m.abs() > UMBRAL_SILENCIO).map_or(inicio, |i| i + 1);
-    Ok(muestras[inicio..fin].to_vec())
+    muestras[inicio..fin].to_vec()
 }
 
 /// Qué frases suenan y cuándo, listo para sonar.
@@ -198,5 +334,43 @@ mod pruebas {
             assert!(clip[0].abs() > UMBRAL_SILENCIO, "{frase}");
             assert!((clip.len() as f64 / RATE_FRASES) < 2.0, "{frase}");
         }
+    }
+
+    #[test]
+    fn reemplaza_recarga_y_restaura_una_frase() {
+        let originales = Path::new(env!("CARGO_MANIFEST_DIR")).join("recursos/voz");
+        let sello = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let carpeta = std::env::temp_dir().join(format!("desglose-guia-{}-{sello}", std::process::id()));
+        let mut bytes = Cursor::new(Vec::new());
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut wav = hound::WavWriter::new(&mut bytes, spec).unwrap();
+        for _ in 0..4_800 {
+            wav.write_sample(8_192_i16).unwrap();
+            wav.write_sample(24_576_i16).unwrap();
+        }
+        wav.finalize().unwrap();
+        let mut banco = Banco::cargar(&originales).unwrap();
+        let duracion_original = banco.frases().into_iter().find(|(n, _)| n == "Coro").unwrap().1;
+        banco.guardar_propia(&carpeta, "Coro", bytes.get_ref()).unwrap();
+        banco.guardar_propia(&carpeta, "Coro", bytes.get_ref()).unwrap();
+        banco.guardar_propia(&carpeta, "Sólo teclado", bytes.get_ref()).unwrap();
+        assert!(banco.guardar_propia(&carpeta, "Coro", b"wav invalido").is_err());
+
+        let mut recargado = Banco::cargar(&originales).unwrap();
+        recargado.cargar_propias(&carpeta);
+        let guia = Guia::new(&recargado, &[(1.0, "Coro".into()), (2.0, "Sólo teclado".into())]);
+        assert!((guia.muestra_en(50_400.0, 48_000, 1.0) - 0.5 * VOLUMEN).abs() < 1e-5);
+        assert!((guia.muestra_en(98_400.0, 48_000, 1.0) - 0.5 * VOLUMEN).abs() < 1e-5);
+        assert_eq!(recargado.restaurables(), ["Coro"]);
+        recargado.restaurar(&carpeta, &originales, "Coro").unwrap();
+        assert!(recargado.restaurables().is_empty());
+        assert_eq!(recargado.frases().into_iter().find(|(n, _)| n == "Coro").unwrap().1, duracion_original);
+        fs::remove_file(ruta_propia(&carpeta, "Sólo teclado").unwrap()).unwrap();
+        fs::remove_dir(carpeta).unwrap();
     }
 }

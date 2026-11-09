@@ -30,10 +30,12 @@ pub fn run() {
         .setup(|app| {
             // Las frases de la voz guía: se leen una vez, de los recursos de la app.
             let carpeta = app.path().resource_dir()?.join("voz");
-            match audio::guia::Banco::cargar(&carpeta) {
-                Ok(banco) => app.state::<Motor>().fijar_banco(banco),
-                Err(e) => eprintln!("{e}"),
-            }
+            let mut banco = audio::guia::Banco::cargar(&carpeta).unwrap_or_else(|e| {
+                eprintln!("{e}");
+                audio::guia::Banco::default()
+            });
+            banco.cargar_propias(&app.path().app_data_dir()?.join("voz-propia"));
+            app.state::<Motor>().fijar_banco(banco);
 
             // Avisa a la interfaz la posición y el estado unas 30 veces por segundo.
             let app = app.handle().clone();
@@ -54,6 +56,9 @@ pub fn run() {
             commands::click,
             commands::guia,
             commands::frases_guia,
+            commands::frases_guia_restaurables,
+            commands::guardar_frase_guia,
+            commands::restaurar_frase_guia,
             commands::estudio,
             commands::exportar,
             commands::volumen,

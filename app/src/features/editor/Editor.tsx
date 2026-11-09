@@ -12,6 +12,7 @@ import { datosPista } from "../../lib/instrumentos";
 import { alCompas, dividir, empezar, propuestaEnCurso, proponerConIa, useSecciones, type Seccion } from "../../lib/secciones";
 import { alTiempo, calcularGuia, type Frases } from "../../lib/guia";
 import { CabeceraPista } from "./CabeceraPista";
+import { FrasesGuia } from "./FrasesGuia";
 import { ALTO_FRANJA, ALTO_GUIA, ALTO_REGLA, ALTO_SECCIONES, LineaTiempo, type FilaOnda } from "./LineaTiempo";
 import { FranjaGuia } from "./Guia";
 import { FranjaSecciones, type AvanceIa } from "./Secciones";
@@ -285,6 +286,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
 
   // ---------- Voz guía ----------
   const [frases, setFrases] = useState<Frases>(new Map());
+  const [editarFrases, setEditarFrases] = useState(false);
   const [libres, setLibres] = useState<db.AvisoLibre[]>([]);
   useEffect(() => {
     motor.frasesGuia().then(setFrases, (e) => setError(String(e)));
@@ -300,7 +302,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
   useEffect(() => {
     if (cargas === 0) return;
     motor.guia(guia.eventos).catch((e) => setError(String(e)));
-  }, [claveGuia, cargas]);
+  }, [claveGuia, cargas, frases]);
   useEffect(() => {
     if (cargas === 0) return;
     const indice = desdeBase.length + 1; // la guía va después del click
@@ -450,10 +452,17 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
             <div style={{ height: ALTO_GUIA }} className="flex items-center gap-1 border-b border-line bg-ink-0 px-3">
               <span className="text-[10.5px] font-semibold tracking-wider text-fg-3 uppercase">Voz guía</span>
               <button
+                onClick={() => setEditarFrases(true)}
+                title="Grabar, importar o restaurar frases"
+                className="ml-auto rounded-md border border-line-2 px-1.5 py-0.5 text-[11px] text-fg-2 hover:text-fg"
+              >
+                Frases…
+              </button>
+              <button
                 onClick={anadirAviso}
                 disabled={!click.bpm}
                 title="Agrega un aviso (Todos, Bajamos, Última vez...) donde está la canción (tecla G)"
-                className="ml-auto rounded-md border border-line-2 px-1.5 py-0.5 text-[11px] text-fg-2 hover:text-fg disabled:opacity-35"
+                className="rounded-md border border-line-2 px-1.5 py-0.5 text-[11px] text-fg-2 hover:text-fg disabled:opacity-35"
               >
                 + Aviso (G)
               </button>
@@ -520,6 +529,13 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
         alError={setError}
       />
 
+      {editarFrases && (
+        <FrasesGuia
+          frases={[...frases.keys()]}
+          alCambiar={async () => setFrases(await motor.frasesGuia())}
+          alCerrar={() => setEditarFrases(false)}
+        />
+      )}
       {porQuitar && (
         <Confirmar
           titulo={`¿Quitar "${datosPista(porQuitar).nombre}"?`}

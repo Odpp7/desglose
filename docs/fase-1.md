@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (7 de noviembre)
 
-**Pasos 1 a 6 terminados ✅** y **7a (voz guía automática)** en la rama `fase-1` (todavía no unida a `main`). **Sigue el 7b: voz propia (grabar o cargar frases).** Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 7 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el paso 8: exportar para REAPER.** Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -16,7 +16,8 @@ Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 - **Secciones (6a):** franja bajo la regla. Sin secciones: "Marcar a mano" o "Proponer con IA" (6b). Tecla S o "Cortar": corta donde está la canción, pegado al compás si hay click. Clic en una sección: escuchar, nombre (Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final), unir, borrar. Bordes arrastrables (Alt: sin pegarse). Ctrl+Z / Ctrl+Y. Cubren toda la canción, una tras otra; se numeran solas (Verso 1, Verso 2; si hay una sola, sin número). SQLite: migración 5, tabla `secciones` con `origen` ia/manual.
 - **Secciones con IA (6b):** `backend/secciones.py` tiene dos direcciones web en Modal: `iniciar` (recibe la canción, lanza SongFormer y responde al momento con el número del trabajo) y `estado` (en fila, preparando, analizando, listo). SongFormer en CPU: unos 3 minutos y 2 centavos. Rust guarda el número en `secciones-ia.txt` en la carpeta de la canción y pregunta cada 3 s; la interfaz muestra una barra con la etapa y el tiempo. Si se cierra la app, al abrir la canción retoma el mismo trabajo. Solo responde con la clave (secreto `desglose-clave` en Modal; en la app, "Clave de Modal" en Ajustes). Se creó con `backend/scripts/crear-clave.ps1`. Rust sube la canción y pregunta el avance (`src-tauri/src/secciones.rs`); la interfaz traduce, junta las seguidas del mismo tipo (la IA parte un coro en pedazos), pega al compás y guarda solo si la canción sigue sin secciones. Si falla, muestra el motivo y "Marcar a mano" sigue ahí. El trabajo sigue aunque se cambie de canción.
 - **Voz guía (7a):** las 34 frases de `es_MX-claude-high` están en `src-tauri/recursos/voz/` (con excepción en `.gitignore`) y van en el instalador. Rust las carga una vez (`audio/guia.rs`) y las hace sonar como el click: siguen la velocidad pero no se estiran ni cambian de tono. Dónde va cada frase lo calcula `src/lib/guia.ts` (1 compás antes, o 2 si el compás dura menos de 1,6 s; la primera en el compás de conteo; nombre largo recorta el conteo; 6/8 cuenta en 2; sin frase "Coro 4" dice "Coro"; Break y Sección solo cuentan). Franja "VOZ GUÍA": clic para cambiar frase, anticipación o quitar el aviso; arrastrar cambia los compases; "+ Aviso (G)" agrega frases libres. Bloque "Guía" en el transporte. SQLite: migración 6.
-- **Pruebas:** 32 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
+- **Voz propia (7b):** en «Voz guía → Frases…» se puede grabar con micrófono o importar un WAV de hasta 10 segundos y 4 MB. Las frases se guardan localmente y sirven para todas las canciones. «Restaurar original» recupera la voz incluida en la app.
+- **Pruebas:** 33 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
 
@@ -99,7 +100,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 4. Editor ✅ | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" (R) por pista, "Añadir pista" (un archivo propio que se alinea arrastrándolo o con ‹ ›, y se quita con ✕) y "Tonalidad", que escribe el encargado. Se adelantaron del paso 9 la velocidad y el cambio de tono al escuchar |
 | 5. Click ✅ | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones ✅ | Dos caminos: la IA propone o el encargado las marca a mano (sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
-| 7. Voz guía (7a ✅) | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |
+| 7. Voz guía ✅ | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o importar WAV |
 | 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
 | 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
@@ -128,10 +129,10 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 | ~~`prototypes/ai-pipeline/mvsep.py`~~ | Cadena de MVSep | Ya en Rust (paso 3) |
 | ~~`prototypes/ai-pipeline/secciones.py`~~ | SongFormer en Modal | Ya en `backend/secciones.py` (paso 6) |
 | ~~`prototypes/ai-pipeline/separar.py`~~ | Respaldo con BS-RoFormer-SW | No se conectó: queda en el historial de git |
-| `prototypes/voice-piper/generar.py` | Colocación de la voz y conteo | Lógica para `guide.rs` |
-| `prototypes/voice-piper/out/es_MX-claude-high/` | Las 34 frases | Recursos de la app |
+| ~~`prototypes/voice-piper/generar.py`~~ | Prototipo de voz y conteo | La guía se arma en `app/src/lib/guia.ts` y suena desde Rust |
+| ~~`prototypes/voice-piper/out/es_MX-claude-high/`~~ | Las 34 frases | `app/src-tauri/recursos/voz/` |
 
-Las frases son `.wav`, que `.gitignore` ignora, y están en `out/`, que también se ignora. **Al moverlas a la app hay que agregar una excepción en `.gitignore`**, o no llegarán a git.
+Las frases incluidas en la app tienen su excepción en `.gitignore`.
 
 Las pruebas que no sirvieron y `mvsep.py` (ya en Rust) se borraron el 8 de noviembre; quedan en el historial de git: `probar_mega.py`, `paneo.py`, `ritmo.py` y `scripts/combinar.ps1`. También se borró `docs/fase-0.md`.
 
@@ -143,12 +144,12 @@ Las pruebas que no sirvieron y `mvsep.py` (ya en Rust) se borraron el 8 de novie
 | --- | --- |
 | ~~`prototypes/audio-engine/`~~ | Paso 1 ✅ |
 | ~~`prototypes/ai-pipeline/`~~ | Paso 6 ✅ |
-| `prototypes/voice-piper/` | Paso 7 |
+| ~~`prototypes/voice-piper/`~~ | Paso 7 ✅ |
 | `prototypes/rpp-export/` | Paso 8 |
 
 Cuidado antes de borrar: hay cosas que **no están en git** y se perderían para siempre:
 
-- Las 34 frases de `prototypes/voice-piper/out/` (los `.wav` se ignoran). Moverlas a la app primero.
+- Los WAV de prueba del prototipo de Piper se conservaron localmente en `samples/piper-prototipo/`, incluida la voz alternativa Daniela.
 - ~~La clave de MVSep en `prototypes/ai-pipeline/.env`~~: borrada; la app la guarda en Ajustes.
 
 También se borra lo que deje de usarse dentro de la app y los documentos que queden viejos (como `docs/fase-0.md`, borrado en el paso 5). `samples/` se queda: son las canciones de prueba y no se suben a git.
@@ -197,7 +198,6 @@ También se borra lo que deje de usarse dentro de la app y los documentos que qu
 
 - **Secuencia del encargado:** antes del paso 8, para copiar su formato. Pasa la prueba cuando él diga "esto es como lo que uso".
 - **Frecuencia de exportación:** las pistas salen a 44.1 kHz y la especificación pide 48 kHz por defecto. Se decide al ver la secuencia del encargado.
-- **Frases nuevas de la voz guía:** grabarlas con micrófono o bajar la voz completa.
 - **Respaldo y límites:** si MVSep falla o no hay internet, el encargado ve el motivo y "Reintentar" (decidido en el paso 3). Falta decidir si se usa el respaldo en Modal.
 - **Mejor horario para MVSep:** `app/scripts/medir-fila-mvsep.ps1` anota la fila cada 30 minutos en `samples/fila-mvsep.csv`. Revisar con uno o dos días de datos.
 - **Preparar canciones en cola** (por ejemplo, de noche): idea para cuando el encargado tenga varias canciones.

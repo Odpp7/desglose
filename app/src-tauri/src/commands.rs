@@ -106,6 +106,33 @@ pub fn frases_guia(motor: State<'_, Motor>) -> Vec<(String, f64)> {
 }
 
 #[tauri::command]
+pub fn frases_guia_restaurables(motor: State<'_, Motor>) -> Vec<String> {
+    motor.frases_restaurables()
+}
+
+#[tauri::command(async)]
+pub fn guardar_frase_guia(
+    app: AppHandle,
+    motor: State<'_, Motor>,
+    nombre: String,
+    wav: Vec<u8>,
+) -> Result<(), String> {
+    let carpeta = app.path().app_data_dir().map_err(|e| e.to_string())?.join("voz-propia");
+    motor.editar_banco(|banco| banco.guardar_propia(&carpeta, &nombre, &wav))
+}
+
+#[tauri::command(async)]
+pub fn restaurar_frase_guia(
+    app: AppHandle,
+    motor: State<'_, Motor>,
+    nombre: String,
+) -> Result<(), String> {
+    let carpeta = app.path().app_data_dir().map_err(|e| e.to_string())?.join("voz-propia");
+    let originales = app.path().resource_dir().map_err(|e| e.to_string())?.join("voz");
+    motor.editar_banco(|banco| banco.restaurar(&carpeta, &originales, &nombre))
+}
+
+#[tauri::command]
 pub fn estudio(velocidad: f32, semitonos: f32, motor: State<'_, Motor>) -> Result<(), String> {
     motor.estudio(velocidad, semitonos)
 }
