@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (7 de noviembre)
 
-**Pasos 1 a 5 terminados ✅** y **6a (secciones a mano) ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el 6b: proponer secciones con IA (Modal).** Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 6 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el paso 7: Voz guía.** Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -13,17 +13,21 @@ Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 - **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
 - **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. Exportar está en el transporte, apagado hasta su paso.
 - **Click:** "BPM" en la fila de datos abre su panel: BPM con − y +, "Tocar el tempo" (clic o tecla T), compás (2/4, 3/4, 4/4, 6/8, 12/8), conteo de entrada (0 a 2 compases) y primer tiempo (‹ ›, "Aquí"). En la línea de tiempo: rejilla de compases y tiempos, números de compás en la regla y el marcador "1" que se arrastra. En el transporte: encendido y volumen. Se guarda en SQLite (migración 4). Un solo tempo por canción; cambios de tempo y subdivisión quedan para después. Si el conteo no cabe antes del primer tiempo, suena lo que alcance (agregar silencio al inicio se decide en el paso 8).
-- **Secciones (6a):** franja bajo la regla. Sin secciones: "Marcar a mano" (o "Proponer con IA", que llega en el 6b). Tecla S o "Cortar": corta donde está la canción, pegado al compás si hay click. Clic en una sección: escuchar, nombre (Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final), unir, borrar. Bordes arrastrables (Alt: sin pegarse). Ctrl+Z / Ctrl+Y. Cubren toda la canción, una tras otra; se numeran solas (Verso 1, Verso 2; si hay una sola, sin número). SQLite: migración 5, tabla `secciones` con `origen` ia/manual.
+- **Secciones (6a):** franja bajo la regla. Sin secciones: "Marcar a mano" o "Proponer con IA" (6b). Tecla S o "Cortar": corta donde está la canción, pegado al compás si hay click. Clic en una sección: escuchar, nombre (Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final), unir, borrar. Bordes arrastrables (Alt: sin pegarse). Ctrl+Z / Ctrl+Y. Cubren toda la canción, una tras otra; se numeran solas (Verso 1, Verso 2; si hay una sola, sin número). SQLite: migración 5, tabla `secciones` con `origen` ia/manual.
+- **Secciones con IA (6b):** `backend/secciones.py` tiene dos direcciones web en Modal: `iniciar` (recibe la canción, lanza SongFormer y responde al momento con el número del trabajo) y `estado` (en fila, preparando, analizando, listo). SongFormer en CPU: unos 3 minutos y 2 centavos. Rust guarda el número en `secciones-ia.txt` en la carpeta de la canción y pregunta cada 3 s; la interfaz muestra una barra con la etapa y el tiempo. Si se cierra la app, al abrir la canción retoma el mismo trabajo. Solo responde con la clave (secreto `desglose-clave` en Modal; en la app, "Clave de Modal" en Ajustes). Se creó con `backend/scripts/crear-clave.ps1`. Rust sube la canción y pregunta el avance (`src-tauri/src/secciones.rs`); la interfaz traduce, junta las seguidas del mismo tipo (la IA parte un coro en pedazos), pega al compás y guarda solo si la canción sigue sin secciones. Si falla, muestra el motivo y "Marcar a mano" sigue ahí. El trabajo sigue aunque se cambie de canción.
 - **Pruebas:** 28 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
 
+- **`reqwest::blocking` no va directo en una orden `async` de Tauri:** se cae por dentro ("Cannot drop a runtime in a context where blocking is not allowed") y la interfaz espera para siempre sin aviso. Usar `#[tauri::command] async fn` + `tauri::async_runtime::spawn_blocking`, o `thread::spawn` como en `crear_secuencia`. Así se perdió la primera prueba de "Proponer con IA" (10 minutos esperando una petición que nunca salió). Ver los errores en la consola de `npm run tauri dev`.
+- **Modal puede interrumpir una máquina a mitad ("preemption")** y reintenta solo con el mismo trabajo: puede tardar un poco más.
+
 - **La fila de MVSep manda.** En el plan gratis cada trabajo hace la fila completa y hay uno a la vez por cuenta. El 7 de noviembre había ~400 en fila y un trabajo tardó 80 minutos. Por eso todo es por partes y opcional. `app/scripts/medir-fila-mvsep.ps1` anota la fila cada 30 minutos en `samples/fila-mvsep.csv`; quedaron pocas horas medidas (se cortó), falta medir uno o dos días para recomendar horarios.
 - **Recarga en caliente de Vite:** al borrar o mover archivos de la interfaz, la ventana de Tauri puede quedar en blanco. No es un error del código: cerrar y volver a abrir `npm run tauri dev`.
 - **Revisar el diseño sin pedirle capturas a Oscar:** con PowerShell y `PrintWindow` (user32) se captura solo la ventana de Desglose a un PNG y se mira. Si mide 160×28, está minimizada.
-- **Leer la base desde fuera:** `%APPDATA%\com.desglose.app\desglose.db`. Abrirla con una conexión normal (no `mode=ro`): los cambios recientes están en el archivo `-wal` y en solo lectura no se ven.
+- **La base, solo desde copias, y nunca escribir en `%APPDATA%\com.desglose.app` desde la terminal de Claude.** Esa terminal ve esa carpeta a través de una copia propia: lo que escribe ahí (también lo que escribe SQLite al cerrar una conexión) queda solo en su copia y la PC real no lo ve. El 9 de noviembre, leer la base con Python pasó el `-wal` real (con todo lo hecho desde el 7) a esa copia; la app quedó con el archivo principal del 7 de noviembre (tono E, una pista ya borrada, sin BPM) y luego "database disk image is malformed". Se recuperó desde la copia de Claude con un script corrido en la terminal de Oscar. Regla: para revisar, copiar `desglose.db`, `-wal` y `-shm` a la carpeta de trabajo y abrir la copia con `immutable=1`; para ver la carpeta real, usar la terminal de Oscar (`run_in_terminal`).
 - **Scripts largos en la terminal:** un `python - <<EOF` con mucho texto a veces falla o lo bloquea el chequeo de seguridad. Mejor escribir el script en un archivo y correrlo.
-- **La clave de MVSep** ya se pega en Ajustes (`%APPDATA%\com.desglose.app\clave-mvsep.txt`). La copia vieja en `prototypes/ai-pipeline/.env` ya se borró.
+- **La clave de MVSep** ya se pega en Ajustes (`%APPDATA%\com.desglose.app\clave-mvsep.txt`). La copia vieja (`.env` del prototipo) ya se borró.
 
 ## Antes de empezar
 
@@ -92,7 +96,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 3. Crear secuencia ✅ | Un botón separa en 6 pistas con 1 trabajo de MVSep, con avance y espera estimada. Botones opcionales aparte: voz líder y coros, guitarras, synth |
 | 4. Editor ✅ | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" (R) por pista, "Añadir pista" (un archivo propio que se alinea arrastrándolo o con ‹ ›, y se quita con ✕) y "Tonalidad", que escribe el encargado. Se adelantaron del paso 9 la velocidad y el cambio de tono al escuchar |
 | 5. Click ✅ | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
-| 6. Secciones (6a ✅) | Dos caminos: la IA propone (6b) o el encargado las marca a mano (6a, sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
+| 6. Secciones ✅ | Dos caminos: la IA propone o el encargado las marca a mano (sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |
 | 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
 | 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |
@@ -120,8 +124,8 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 | ~~`prototypes/audio-engine/`~~ | Motor y órdenes de Tauri | Ya en `app/src-tauri/` (paso 1) |
 | `prototypes/rpp-export/src/rpp.rs` | Escritor de `.RPP` | `app/src-tauri/src/export/rpp.rs` |
 | ~~`prototypes/ai-pipeline/mvsep.py`~~ | Cadena de MVSep | Ya en Rust (paso 3) |
-| `prototypes/ai-pipeline/secciones.py` | SongFormer en Modal | `backend/`, como una función web |
-| `prototypes/ai-pipeline/separar.py` | Respaldo con BS-RoFormer-SW | `backend/` |
+| ~~`prototypes/ai-pipeline/secciones.py`~~ | SongFormer en Modal | Ya en `backend/secciones.py` (paso 6) |
+| ~~`prototypes/ai-pipeline/separar.py`~~ | Respaldo con BS-RoFormer-SW | No se conectó: queda en el historial de git |
 | `prototypes/voice-piper/generar.py` | Colocación de la voz y conteo | Lógica para `guide.rs` |
 | `prototypes/voice-piper/out/es_MX-claude-high/` | Las 34 frases | Recursos de la app |
 
@@ -136,7 +140,7 @@ Las pruebas que no sirvieron y `mvsep.py` (ya en Rust) se borraron el 8 de novie
 | Prototipo | Se borra al terminar |
 | --- | --- |
 | ~~`prototypes/audio-engine/`~~ | Paso 1 ✅ |
-| `prototypes/ai-pipeline/` | Paso 6 (MVSep pasa a Rust en el 3; SongFormer y el respaldo pasan a `backend/` en el 6) |
+| ~~`prototypes/ai-pipeline/`~~ | Paso 6 ✅ |
 | `prototypes/voice-piper/` | Paso 7 |
 | `prototypes/rpp-export/` | Paso 8 |
 

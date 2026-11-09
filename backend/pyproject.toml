@@ -1,0 +1,8 @@
+[project]
+name = "desglose-backend"
+version = "0.1.0"
+description = "Lo que corre en la nube (Modal): proponer las secciones con SongFormer."
+requires-python = ">=3.11"
+dependencies = [
+    "modal>=1.6.3",
+]

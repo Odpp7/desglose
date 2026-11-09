@@ -9,10 +9,12 @@ import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
 import { datosPista } from "../../lib/instrumentos";
-import { alCompas, dividir, empezar, useSecciones } from "../../lib/secciones";
+import { alCompas, dividir, empezar, propuestaEnCurso, proponerConIa, useSecciones } from "../../lib/secciones";
 import { CabeceraPista } from "./CabeceraPista";
 import { ALTO_FRANJA, ALTO_REGLA, LineaTiempo, type FilaOnda } from "./LineaTiempo";
-import { FranjaSecciones } from "./Secciones";
+import { FranjaSecciones, type AvanceIa } from "./Secciones";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Transporte, type Estudio } from "./Transporte";
 
 // El editor de una canción ya separada:
@@ -223,6 +225,59 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
     secciones.cambiar(dividir(base, ajustar(ultimo.current.posicion), cancion.duracion_ms / 1000));
   }
 
+  // Proponer con IA. El trabajo sigue aunque se cierre el editor: al volver, si
+  // todavía corre, se espera; si ya terminó, las secciones ya están en SQLite.
+  // Si la app se cerró a mitad, Rust guardó el número del trabajo: al abrir la
+  // canción se retoma solo (sin subirla ni pagar otra vez).
+  const [proponiendo, setProponiendo] = useState(false);
+  const [errorIa, setErrorIa] = useState<string | null>(null);
+  // En qué va la IA (lo avisa Rust cada 3 s) y cuándo empezó a esperarla.
+  const [avanceIa, setAvanceIa] = useState<AvanceIa | null>(null);
+  const [desdeIa, setDesdeIa] = useState(0);
+  const seccionesActuales = useRef(secciones);
+  seccionesActuales.current = secciones;
+  const montado = useRef(true);
+  useEffect(() => {
+    montado.current = true;
+    const enCurso = propuestaEnCurso(id);
+    if (enCurso) esperarPropuesta(enCurso);
+    const dejar = listen<AvanceIa & { cancion: number }>("avance-secciones", (e) => {
+      if (e.payload.cancion === id) setAvanceIa({ etapa: e.payload.etapa, segundos: e.payload.segundos });
+    });
+    return () => {
+      montado.current = false;
+      dejar.then((f) => f());
+    };
+  }, [id]);
+
+  const cargadas = secciones.secciones !== undefined;
+  useEffect(() => {
+    if (!cargadas || secciones.secciones?.length || propuestaEnCurso(id)) return;
+    invoke<boolean>("secciones_ia_pendiente", { id }).then((hay) => {
+      if (hay && montado.current) esperarPropuesta(proponerConIa(id, cancion.archivo, ajustar));
+    });
+  }, [cargadas]);
+
+  function esperarPropuesta(trabajo: Promise<Parameters<typeof secciones.cambiar>[0]>) {
+    setProponiendo(true);
+    setErrorIa(null);
+    setAvanceIa(null);
+    setDesdeIa(Date.now());
+    trabajo.then(
+      (lista) => {
+        if (!montado.current) return;
+        setProponiendo(false);
+        // Solo si sigue vacía: lo marcado a mano mientras tanto no se pisa.
+        if (seccionesActuales.current.secciones?.length === 0) seccionesActuales.current.cambiar(lista);
+      },
+      (e) => {
+        if (!montado.current) return;
+        setProponiendo(false);
+        setErrorIa(e instanceof Error ? e.message : String(e));
+      },
+    );
+  }
+
   // Teclas. Usan las funciones del último dibujo (por eso el ref).
   const teclas = useRef({ cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer });
   teclas.current = { cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer };
@@ -359,6 +414,11 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
                 alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
                 ajustar={ajustar}
                 alMarcarAMano={() => secciones.cambiar(empezar())}
+                alProponer={() => esperarPropuesta(proponerConIa(id, cancion.archivo, ajustar))}
+                proponiendo={proponiendo}
+                avanceIa={avanceIa}
+                desdeIa={desdeIa}
+                errorIa={errorIa}
               />
             )}
           />

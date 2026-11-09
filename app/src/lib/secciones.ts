@@ -10,6 +10,7 @@
 // Arriba van funciones puras (reciben la lista y devuelven una nueva); abajo, el
 // hook `useSecciones`, que las guarda en SQLite y permite deshacer y rehacer.
 
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { guardarSecciones, listarSecciones, type FilaSeccion } from "./db";
 
@@ -123,6 +124,83 @@ export function alCompas(segundos: number, inicioClick: number, segundosPorCompa
 
 function redondear(segundos: number) {
   return Math.round(segundos * 1000) / 1000;
+}
+
+// ---------- Proponer con IA (SongFormer en Modal) ----------
+
+/** Lo que devuelve SongFormer: etiquetas en inglés. */
+type SeccionIa = { inicio: number; fin: number; etiqueta: string };
+
+/** Etiqueta de SongFormer → tipo. `null`: no es una sección (se suma a la anterior). */
+const ETIQUETAS: Record<string, string | null> = {
+  intro: "Intro",
+  verse: "Verso",
+  "pre-chorus": "Pre-coro",
+  prechorus: "Pre-coro",
+  chorus: "Coro",
+  "post-chorus": "Post-coro",
+  bridge: "Puente",
+  inst: "Instrumental",
+  instrumental: "Instrumental",
+  solo: "Solo",
+  break: "Break",
+  outro: "Final",
+  end: null,
+  silence: null,
+};
+
+/**
+ * Convierte la respuesta de la IA en secciones: traduce los nombres, pega cada
+ * inicio al compás (`ajustar`), junta las seguidas del mismo tipo y quita lo que
+ * no es sección (silencios) o lo que quedó demasiado corto. La primera siempre
+ * empieza en 0.
+ */
+export function desdeIa(ia: SeccionIa[], ajustar: (s: number) => number): Seccion[] {
+  const lista: Seccion[] = [];
+  for (const s of [...ia].sort((a, b) => a.inicio - b.inicio)) {
+    const etiqueta = s.etiqueta.toLowerCase().trim();
+    const tipo = etiqueta in ETIQUETAS ? ETIQUETAS[etiqueta] : SIN_NOMBRE;
+    if (tipo === null) continue;
+    const inicio = lista.length === 0 ? 0 : redondear(ajustar(s.inicio));
+    const anterior = lista[lista.length - 1];
+    // La IA suele partir un coro largo en pedazos (coro, coro, coro): se juntan.
+    // Si eran dos partes de verdad, se cortan con S.
+    if (anterior && anterior.tipo === tipo) continue;
+    if (anterior && inicio - anterior.inicio < MINIMO_SEGUNDOS) continue;
+    lista.push({ inicio, tipo, origen: "ia" });
+  }
+  return lista;
+}
+
+/** Las propuestas que están corriendo, por canción: siguen aunque se cierre el editor. */
+const enCurso = new Map<number, Promise<Seccion[]>>();
+
+/** La propuesta en curso de esta canción, si hay una. */
+export function propuestaEnCurso(cancionId: number) {
+  return enCurso.get(cancionId);
+}
+
+/**
+ * Pide a la IA las secciones de la canción (unos 3 minutos). Al terminar las
+ * guarda en SQLite, pero SOLO si la canción sigue sin secciones: nunca pisa lo
+ * que el encargado marcó a mano mientras tanto.
+ */
+export function proponerConIa(
+  cancionId: number,
+  archivo: string,
+  ajustar: (s: number) => number,
+): Promise<Seccion[]> {
+  const yaVa = enCurso.get(cancionId);
+  if (yaVa) return yaVa;
+  const trabajo = (async () => {
+    const ia = await invoke<SeccionIa[]>("proponer_secciones", { id: cancionId, archivo });
+    const lista = desdeIa(ia, ajustar);
+    if (lista.length === 0) throw new Error("La IA no encontró secciones. Márcalas a mano.");
+    if ((await listarSecciones(cancionId)).length === 0) await guardarSecciones(cancionId, lista);
+    return lista;
+  })().finally(() => enCurso.delete(cancionId));
+  enCurso.set(cancionId, trabajo);
+  return trabajo;
 }
 
 // ---------- Hook: guardar, deshacer y rehacer ----------

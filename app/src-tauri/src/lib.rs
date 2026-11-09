@@ -4,6 +4,7 @@ mod biblioteca;
 mod commands;
 mod db;
 mod mvsep;
+mod secciones;
 mod secuencia;
 
 use std::thread;
@@ -55,6 +56,10 @@ pub fn run() {
             biblioteca::borrar_pista_propia,
             ajustes::guardar_clave_mvsep,
             ajustes::hay_clave_mvsep,
+            ajustes::guardar_clave_modal,
+            ajustes::hay_clave_modal,
+            secciones::proponer_secciones,
+            secciones::secciones_ia_pendiente,
             secuencia::crear_secuencia,
             secuencia::secuencia_en_curso,
             secuencia::cancelar_secuencia,

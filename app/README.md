@@ -9,7 +9,7 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `features/library/`: la biblioteca (carpetas, canciones, agregar y arrastrar).
   - `features/song/`: la canción abierta (botones Separar, datos, crear secuencia).
   - `features/editor/`: pistas, ondas, mezclador, transporte, el panel del click (`EditorClick.tsx`) y la franja de secciones (`Secciones.tsx`).
-  - `features/settings/`: Ajustes (la clave de MVSep).
+  - `features/settings/`: Ajustes (las claves de MVSep y de Modal).
   - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto, estado).
   - `lib/engine.ts`: las órdenes al motor de audio (cargar canción, ondas, play...).
   - `lib/db.ts`: las consultas a SQLite.
@@ -24,7 +24,8 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `src/biblioteca.rs`: copiar una canción a su carpeta, medir su duración y borrarla.
   - `src/mvsep.rs`, `src/secuencia.rs`: separar con MVSep por partes, retomar y cancelar.
   - `src/audio/nivel.rs`, `src/audio/ondas.rs`: pistas vacías y formas de onda.
-  - `src/ajustes.rs`: la clave de MVSep.
+  - `src/ajustes.rs`: las claves de MVSep y de Modal.
+  - `src/secciones.rs`: proponer secciones con la IA (sube la canción a `backend/secciones.py` en Modal, pregunta el avance y retoma si se cerró la app).
 
 ## Dónde guarda las cosas
 

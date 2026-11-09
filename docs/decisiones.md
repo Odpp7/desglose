@@ -67,4 +67,8 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-07: el motor acepta un desfase por pista (silencio delante si empieza más tarde), y la exportación usa el mismo: así una pista propia se alinea y lo que se escucha es lo que se exporta. La interfaz solo puede pedir archivos dentro de la carpeta de la canción.
 - 2026-11-07: velocidad y cambio de tono al escuchar se adelantan del paso 9 al 4b, porque Oscar esperaba que "Tonalidad" cambiara el sonido. "Tonalidad" de la fila de datos es el nombre del tono (lo escribe el encargado); la del transporte transpone el audio y muestra "A → B (+2)". No se guardan: al abrir la canción vuelven a lo normal.
 
+- 2026-11-08: secciones con **dos caminos**: "Proponer con IA" (SongFormer en Modal) o "Marcar a mano" (tecla S mientras suena, sin internet). Motivo: si Modal falla o se acaba el crédito, el encargado igual puede trabajar. La IA solo propone cuando la canción no tiene secciones, y nunca pisa lo marcado a mano.
+- 2026-11-08: la función de Modal es una dirección web protegida con una clave propia (secreto `desglose-clave`), que se pega en Ajustes como la de MVSep. Sin ella nadie puede gastar el crédito. Una canción a la vez y corte a los 10 minutos.
+- 2026-11-08: el respaldo para separar en Modal (BS-RoFormer-SW) no se conecta a la app por ahora: MVSep funciona y el respaldo gastaría el poco crédito. Queda en el historial de git.
+
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

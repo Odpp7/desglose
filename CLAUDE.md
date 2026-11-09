@@ -75,10 +75,9 @@ desglose/
   SETUP-WINDOWS.md     # instalación de herramientas (PC de desarrollo)
   docs/                # especificación, decisiones, fase 0, voces guía
   app/                 # app Tauri + React (ver app/README.md)
-  backend/             # pipeline de IA en Python (uv) desplegado en Modal
+  backend/             # lo que corre en Modal (uv): proponer secciones con SongFormer
   prototypes/          # pruebas de la Fase 0; se borran al pasar a la app
     rpp-export/        # generar un .RPP y abrirlo en REAPER
-    ai-pipeline/       # probar modelos con canciones reales
     voice-piper/       # paquete de voz en español
   samples/             # canciones de prueba (NO se suben a git)
 ```

@@ -270,10 +270,16 @@ pub fn secuencia_en_curso(separacion: State<'_, Separacion>) -> Option<i64> {
 }
 
 /// Cuántos trabajos hay en la fila gratis de MVSep y cuánto espera cada uno.
-#[tauri::command(async)]
-pub fn fila_mvsep(app: AppHandle) -> Result<Fila, String> {
-    let clave = ajustes::leer_clave_mvsep(&app)?.ok_or("Falta la clave de MVSep.")?;
-    Cliente::new(clave, Arc::default())?.fila()
+/// `reqwest::blocking` no puede correr directo en una orden `async` (se cae por
+/// dentro): va en `spawn_blocking`, un hilo aparte para esperar.
+#[tauri::command]
+pub async fn fila_mvsep(app: AppHandle) -> Result<Fila, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let clave = ajustes::leer_clave_mvsep(&app)?.ok_or("Falta la clave de MVSep.")?;
+        Cliente::new(clave, Arc::default())?.fila()
+    })
+    .await
+    .map_err(|e| format!("No se pudo consultar la fila: {e}"))?
 }
 
 type Avisar<'a> = dyn FnMut(usize, String) + 'a;
