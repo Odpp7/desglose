@@ -35,6 +35,7 @@ export function CancionPage() {
   const [hayClave, setHayClave] = useState(true);
   const version = useVersion();
   const [click, cambiarClick] = useClick(cancion);
+  const [haySecciones, setHaySecciones] = useState(false);
 
   // Se vuelve a leer si algo cambia en la biblioteca (renombrar, terminar de separar...).
   useEffect(() => {
@@ -103,12 +104,19 @@ export function CancionPage() {
         {lista ? <DatoBpm click={click} alCambiar={cambiarClick} /> : <Dato titulo="BPM" valor="—" />}
         <Dato titulo="Duración" valor={formatoDuracion(cancion.duracion_ms)} />
         <Dato titulo="Pistas" valor={lista ? String(suenan) : "—"} />
-        <Pasos hechos={[lista, lista && click.bpm !== null]} />
+        <Pasos hechos={[lista, lista && click.bpm !== null, lista && haySecciones]} />
       </div>
 
       {lista ? (
         // `key`: al abrir otra canción, el editor empieza de cero (velocidad y tono normales).
-        <Editor key={cancion.id} cancion={cancion} pistas={pistas} click={click} alCambiarClick={cambiarClick} />
+        <Editor
+          key={cancion.id}
+          cancion={cancion}
+          pistas={pistas}
+          click={click}
+          alCambiarClick={cambiarClick}
+          alTenerSecciones={setHaySecciones}
+        />
       ) : (
         <div className="flex-1 overflow-auto">
           {cancion.estado === "nueva" && <SinSecuencia id={id} hayClave={hayClave} />}
@@ -132,7 +140,7 @@ function Dato({ titulo, valor, ayuda }: { titulo: string; valor: string; ayuda?:
 
 /**
  * Los pasos para dejar lista una secuencia. Por ahora se pueden completar
- * "Separar" y "Click"; los demás llegan en los pasos 6 a 8 de la Fase 1.
+ * "Separar", "Click" y "Secciones"; los demás llegan en los pasos 7 y 8.
  * `hechos` dice cuáles ya están, en orden. El actual es el primero sin hacer.
  * El nombre de cada uno aparece al pasar el mouse.
  */

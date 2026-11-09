@@ -4,13 +4,15 @@ import { Confirmar } from "../../components/Confirmar";
 import { IconoMas } from "../../components/icons";
 import { FORMATOS, borrarPistaPropia, copiarPistaPropia, sinExtension } from "../../lib/archivos";
 import { avisarCambio } from "../../lib/cambios";
-import type { Click } from "../../lib/click";
+import { segundosPorCompas, type Click } from "../../lib/click";
 import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
 import { datosPista } from "../../lib/instrumentos";
+import { alCompas, dividir, empezar, useSecciones } from "../../lib/secciones";
 import { CabeceraPista } from "./CabeceraPista";
-import { ALTO_REGLA, LineaTiempo, type FilaOnda } from "./LineaTiempo";
+import { ALTO_FRANJA, ALTO_REGLA, LineaTiempo, type FilaOnda } from "./LineaTiempo";
+import { FranjaSecciones } from "./Secciones";
 import { Transporte, type Estudio } from "./Transporte";
 
 // El editor de una canción ya separada:
@@ -26,6 +28,9 @@ import { Transporte, type Estudio } from "./Transporte";
 // SQLite: siguen igual al cerrar y abrir la app.
 // El click llega de la página de la canción: aquí se le pasa al motor (es la
 // última "pista"), se dibuja su rejilla y se arrastra su primer tiempo.
+//
+// Secciones: la franja bajo la regla. Teclas: S corta en la posición actual
+// (pegado al compás si hay click), Ctrl+Z deshace y Ctrl+Y rehace.
 // Al entrar, carga las pistas en el motor. Si el motor ya las tenía igual (se
 // abrió otra cosa y se volvió), no las recarga: sigue en el mismo punto.
 
@@ -35,6 +40,8 @@ type Props = {
   pistas: Pista[];
   click: Click;
   alCambiarClick: (cambio: Partial<Click>) => void;
+  /** Avisa si la canción tiene secciones (para marcar el paso en la fila de datos). */
+  alTenerSecciones: (si: boolean) => void;
 };
 
 /** Alto mínimo de una pista: si hay muchas, aparece la barra de desplazamiento. */
@@ -42,7 +49,7 @@ const ALTO_MINIMO = 64;
 /** Espera antes de guardar el volumen en SQLite mientras se mueve el fader. */
 const ESPERA_GUARDAR_MS = 400;
 
-export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Props) {
+export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTenerSecciones }: Props) {
   const id = cancion.id;
   // Copia local para que el fader responda al instante; se guarda en SQLite aparte.
   const [pistas, setPistas] = useState<Pista[]>(desdeBase);
@@ -200,6 +207,45 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Pr
     }
   }
 
+  // ---------- Secciones ----------
+  const secciones = useSecciones(id);
+  const haySecciones = !!secciones.secciones?.length;
+  useEffect(() => alTenerSecciones(haySecciones), [haySecciones]);
+
+  /** Pega al compás más cercano si hay click. */
+  const ajustar = (s: number) => (click.bpm ? alCompas(s, click.inicio, segundosPorCompas(click)) : s);
+
+  function cortarAqui() {
+    const actuales = secciones.secciones;
+    if (!actuales) return;
+    // Sin secciones, cortar empieza el modo a mano (una sola sección) y corta ahí.
+    const base = actuales.length > 0 ? actuales : empezar();
+    secciones.cambiar(dividir(base, ajustar(ultimo.current.posicion), cancion.duracion_ms / 1000));
+  }
+
+  // Teclas. Usan las funciones del último dibujo (por eso el ref).
+  const teclas = useRef({ cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer });
+  teclas.current = { cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer };
+  useEffect(() => {
+    const alTecla = (e: KeyboardEvent) => {
+      const escribiendo = e.target instanceof HTMLInputElement && e.target.type !== "range";
+      if (escribiendo || e.repeat || e.altKey) return;
+      const tecla = e.key.toLowerCase();
+      if (e.ctrlKey && (tecla === "y" || (tecla === "z" && e.shiftKey))) {
+        e.preventDefault();
+        teclas.current.rehacer();
+      } else if (e.ctrlKey && tecla === "z") {
+        e.preventDefault();
+        teclas.current.deshacer();
+      } else if (!e.ctrlKey && e.code === "KeyS") {
+        e.preventDefault();
+        teclas.current.cortarAqui();
+      }
+    };
+    window.addEventListener("keydown", alTecla);
+    return () => window.removeEventListener("keydown", alTecla);
+  }, []);
+
   // Qué pistas se ven. El índice en el motor se conserva aunque se oculten.
   const visibles = useMemo(
     () => pistas.map((p, indice) => ({ pista: p, indice })).filter(({ pista }) => !pista.vacia || mostrarVacias),
@@ -210,7 +256,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Pr
 
   // Cada pista toma una parte igual del alto disponible (nunca menos del mínimo).
   const altoFila =
-    visibles.length > 0 ? Math.max(ALTO_MINIMO, Math.floor((altoZona - ALTO_REGLA) / visibles.length)) : ALTO_MINIMO;
+    visibles.length > 0 ? Math.max(ALTO_MINIMO, Math.floor((altoZona - ALTO_REGLA - ALTO_FRANJA) / visibles.length)) : ALTO_MINIMO;
 
   const filas: FilaOnda[] = useMemo(
     () =>
@@ -270,6 +316,22 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Pr
                 Añadir pista
               </button>
             </div>
+            <div style={{ height: ALTO_FRANJA }} className="flex items-center gap-1 border-b border-line bg-ink-0 px-3">
+              <span className="text-[10.5px] font-semibold tracking-wider text-fg-3 uppercase">Secciones</span>
+              <button
+                onClick={cortarAqui}
+                title="Corta la sección donde está la canción ahora (tecla S). Se pega al compás si hay click."
+                className="ml-auto rounded-md border border-line-2 px-1.5 py-0.5 text-[11px] text-fg-2 hover:text-fg"
+              >
+                Cortar (S)
+              </button>
+              <BotonChico etiqueta="Deshacer (Ctrl+Z)" deshabilitado={!secciones.puedeDeshacer} onClick={secciones.deshacer}>
+                ↶
+              </BotonChico>
+              <BotonChico etiqueta="Rehacer (Ctrl+Y)" deshabilitado={!secciones.puedeRehacer} onClick={secciones.rehacer}>
+                ↷
+              </BotonChico>
+            </div>
             {visibles.map(({ pista, indice }) => (
               <CabeceraPista
                 key={pista.id}
@@ -288,6 +350,17 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Pr
             alMover={alMover}
             click={click.bpm !== null ? click : null}
             alMoverInicio={(inicio) => alCambiarClick({ inicio })}
+            franja={(ancho) => (
+              <FranjaSecciones
+                secciones={secciones.secciones}
+                duracion={duracion}
+                ancho={ancho}
+                alCambiar={secciones.cambiar}
+                alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
+                ajustar={ajustar}
+                alMarcarAMano={() => secciones.cambiar(empezar())}
+              />
+            )}
           />
         </div>
       </div>
@@ -312,5 +385,19 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick }: Pr
         />
       )}
     </div>
+  );
+}
+
+function BotonChico(props: { etiqueta: string; deshabilitado: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      aria-label={props.etiqueta}
+      title={props.etiqueta}
+      disabled={props.deshabilitado}
+      onClick={props.onClick}
+      className="grid size-6 place-items-center rounded-md text-[14px] text-fg-2 hover:bg-ink-3 hover:text-fg disabled:opacity-30"
+    >
+      {props.children}
+    </button>
   );
 }

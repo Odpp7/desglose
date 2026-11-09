@@ -95,5 +95,24 @@ pub fn migraciones() -> Vec<Migration> {
             ",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "secciones de cada canción",
+            sql: "
+                -- Las secciones van una tras otra y cubren toda la canción (como las
+                -- regiones de REAPER): cada una termina donde empieza la siguiente.
+                -- Solo se guarda el tipo (Verso, Coro...): el número se calcula al mostrarla.
+                CREATE TABLE secciones (
+                    id         INTEGER PRIMARY KEY,
+                    cancion_id INTEGER NOT NULL REFERENCES canciones(id) ON DELETE CASCADE,
+                    inicio     REAL    NOT NULL,
+                    tipo       TEXT    NOT NULL,
+                    -- 'ia' si la propuso la IA y nadie la tocó; 'manual' si la puso o
+                    -- la cambió el encargado. La IA nunca pisa una 'manual'.
+                    origen     TEXT    NOT NULL DEFAULT 'manual'
+                );
+            ",
+            kind: MigrationKind::Up,
+        },
     ]
 }

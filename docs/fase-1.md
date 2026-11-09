@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (7 de noviembre)
 
-**Pasos 1 a 5 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el paso 6: Secciones.** Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 5 terminados ✅** y **6a (secciones a mano) ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el 6b: proponer secciones con IA (Modal).** Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -13,6 +13,7 @@ Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 - **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
 - **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. Exportar está en el transporte, apagado hasta su paso.
 - **Click:** "BPM" en la fila de datos abre su panel: BPM con − y +, "Tocar el tempo" (clic o tecla T), compás (2/4, 3/4, 4/4, 6/8, 12/8), conteo de entrada (0 a 2 compases) y primer tiempo (‹ ›, "Aquí"). En la línea de tiempo: rejilla de compases y tiempos, números de compás en la regla y el marcador "1" que se arrastra. En el transporte: encendido y volumen. Se guarda en SQLite (migración 4). Un solo tempo por canción; cambios de tempo y subdivisión quedan para después. Si el conteo no cabe antes del primer tiempo, suena lo que alcance (agregar silencio al inicio se decide en el paso 8).
+- **Secciones (6a):** franja bajo la regla. Sin secciones: "Marcar a mano" (o "Proponer con IA", que llega en el 6b). Tecla S o "Cortar": corta donde está la canción, pegado al compás si hay click. Clic en una sección: escuchar, nombre (Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final), unir, borrar. Bordes arrastrables (Alt: sin pegarse). Ctrl+Z / Ctrl+Y. Cubren toda la canción, una tras otra; se numeran solas (Verso 1, Verso 2; si hay una sola, sin número). SQLite: migración 5, tabla `secciones` con `origen` ia/manual.
 - **Pruebas:** 28 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
@@ -91,7 +92,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 3. Crear secuencia ✅ | Un botón separa en 6 pistas con 1 trabajo de MVSep, con avance y espera estimada. Botones opcionales aparte: voz líder y coros, guitarras, synth |
 | 4. Editor ✅ | **4a:** una sola pantalla al estilo de la captura de referencia: biblioteca siempre a la izquierda, botones Separar arriba, pistas con ondas que llenan el alto, mezclador con dB, transporte por bloques, cancelar separaciones. **4b:** mezcla guardada en SQLite, "va a REAPER" (R) por pista, "Añadir pista" (un archivo propio que se alinea arrastrándolo o con ‹ ›, y se quita con ✕) y "Tonalidad", que escribe el encargado. Se adelantaron del paso 9 la velocidad y el cambio de tono al escuchar |
 | 5. Click ✅ | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
-| 6. Secciones | La IA propone; mover, renombrar, dividir, unir y borrar, con deshacer |
+| 6. Secciones (6a ✅) | Dos caminos: la IA propone (6b) o el encargado las marca a mano (6a, sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o cargar archivos |
 | 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
 | 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |

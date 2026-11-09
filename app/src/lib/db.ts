@@ -121,6 +121,7 @@ export async function moverCancion(id: number, coleccionId: number | null) {
 export async function borrarCancion(id: number) {
   const db = await base();
   await db.execute("DELETE FROM pistas WHERE cancion_id = $1", [id]);
+  await db.execute("DELETE FROM secciones WHERE cancion_id = $1", [id]);
   await db.execute("DELETE FROM canciones WHERE id = $1", [id]);
 }
 
@@ -227,6 +228,33 @@ export async function agregarPistaPropia(cancionId: number, archivo: string, nom
 export async function borrarPista(id: number) {
   const db = await base();
   await db.execute("DELETE FROM pistas WHERE id = $1", [id]);
+}
+
+// ---------- Secciones ----------
+
+/** Una sección como se guarda. Termina donde empieza la siguiente. */
+export type FilaSeccion = { inicio: number; tipo: string; origen: "ia" | "manual" };
+
+export async function listarSecciones(cancionId: number) {
+  const db = await base();
+  return db.select<FilaSeccion[]>(
+    "SELECT inicio, tipo, origen FROM secciones WHERE cancion_id = $1 ORDER BY inicio",
+    [cancionId],
+  );
+}
+
+/** Reemplaza todas las secciones de la canción (son pocas: se guardan de una vez). */
+export async function guardarSecciones(cancionId: number, secciones: FilaSeccion[]) {
+  const db = await base();
+  await db.execute("DELETE FROM secciones WHERE cancion_id = $1", [cancionId]);
+  for (const s of secciones) {
+    await db.execute("INSERT INTO secciones (cancion_id, inicio, tipo, origen) VALUES ($1, $2, $3, $4)", [
+      cancionId,
+      s.inicio,
+      s.tipo,
+      s.origen,
+    ]);
+  }
 }
 
 // ---------- Colecciones ----------
