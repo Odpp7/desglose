@@ -12,8 +12,9 @@ import { formatoSemitonos, transponer } from "../../lib/tonos";
 // tono). El click sigue a la velocidad pero no cambia de tono ni de sonido.
 // Exportar en otro tono llega en el paso 8.
 //
-// Click: encenderlo o apagarlo y su volumen. El BPM, el compás y el primer tiempo
-// se definen arriba, en "BPM" de la fila de datos.
+// Click y Guía: encenderlos o apagarlos y su volumen. El BPM, el compás y el primer
+// tiempo se definen arriba, en "BPM" de la fila de datos. La guía cuenta sobre ese
+// mismo compás: sin BPM no hay guía.
 //
 // La barra espaciadora reproduce o pausa (salvo mientras se escribe en un campo).
 // El tiempo se escribe directo en el texto, sin pasar por el estado de React.
@@ -170,6 +171,28 @@ export function Transporte({ duracion, estudio, tono, click, alCambiarClick, alC
           onDoubleClick={() => alCambiarClick({ volumen: 0.8 })}
           aria-label="Volumen del click"
           title="Volumen del click (doble clic: volver al normal)"
+          className="w-20 accent-[#8ea2ff]"
+        />
+      </Bloque>
+
+      <Bloque titulo="Guía" apagado={click.bpm === null ? "Primero define el BPM, arriba en la fila de datos" : undefined}>
+        <Segmentos
+          opciones={["Apagada", "Encendida"]}
+          elegido={click.guiaActiva && click.bpm !== null ? 1 : 0}
+          deshabilitado={click.bpm === null}
+          alElegir={(i) => alCambiarClick({ guiaActiva: i === 1 })}
+        />
+        <input
+          type="range"
+          min={0}
+          max={1.5}
+          step={0.01}
+          value={click.guiaVolumen}
+          disabled={click.bpm === null}
+          onChange={(e) => alCambiarClick({ guiaVolumen: Number(e.target.value) })}
+          onDoubleClick={() => alCambiarClick({ guiaVolumen: 0.9 })}
+          aria-label="Volumen de la voz guía"
+          title="Volumen de la voz guía (doble clic: volver al normal)"
           className="w-20 accent-[#8ea2ff]"
         />
       </Bloque>

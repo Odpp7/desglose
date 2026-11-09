@@ -29,6 +29,10 @@ export type Cancion = {
   conteo: number;
   click_volumen: number;
   click_activo: number;
+  /** La voz guía: encendida (0/1), volumen y compases de anticipación (null = automático). */
+  guia_activa: number;
+  guia_volumen: number;
+  anticipacion: number | null;
 };
 
 export type EstadoCancion = "nueva" | "separando" | "lista" | "error";
@@ -122,6 +126,7 @@ export async function borrarCancion(id: number) {
   const db = await base();
   await db.execute("DELETE FROM pistas WHERE cancion_id = $1", [id]);
   await db.execute("DELETE FROM secciones WHERE cancion_id = $1", [id]);
+  await db.execute("DELETE FROM avisos WHERE cancion_id = $1", [id]);
   await db.execute("DELETE FROM canciones WHERE id = $1", [id]);
 }
 
@@ -133,12 +138,34 @@ export async function cambiarTono(id: number, tono: string | null) {
 /** Guarda el click de la canción (BPM, compás, primer tiempo, conteo, volumen, encendido). */
 export async function guardarClick(
   id: number,
-  c: Pick<Cancion, "bpm" | "compas" | "inicio_click" | "conteo" | "click_volumen" | "click_activo">,
+  c: Pick<
+    Cancion,
+    | "bpm"
+    | "compas"
+    | "inicio_click"
+    | "conteo"
+    | "click_volumen"
+    | "click_activo"
+    | "guia_activa"
+    | "guia_volumen"
+    | "anticipacion"
+  >,
 ) {
   const db = await base();
   await db.execute(
-    "UPDATE canciones SET bpm = $1, compas = $2, inicio_click = $3, conteo = $4, click_volumen = $5, click_activo = $6 WHERE id = $7",
-    [c.bpm, c.compas, c.inicio_click, c.conteo, c.click_volumen, c.click_activo, id],
+    "UPDATE canciones SET bpm = $1, compas = $2, inicio_click = $3, conteo = $4, click_volumen = $5, click_activo = $6, guia_activa = $7, guia_volumen = $8, anticipacion = $9 WHERE id = $10",
+    [
+      c.bpm,
+      c.compas,
+      c.inicio_click,
+      c.conteo,
+      c.click_volumen,
+      c.click_activo,
+      c.guia_activa,
+      c.guia_volumen,
+      c.anticipacion,
+      id,
+    ],
   );
 }
 
@@ -232,13 +259,26 @@ export async function borrarPista(id: number) {
 
 // ---------- Secciones ----------
 
-/** Una sección como se guarda. Termina donde empieza la siguiente. */
-export type FilaSeccion = { inicio: number; tipo: string; origen: "ia" | "manual" };
+/**
+ * Una sección como se guarda. Termina donde empieza la siguiente.
+ * `aviso`, `anticipacion` y `sin_aviso` son lo que el encargado cambió de su voz guía.
+ */
+export type FilaSeccion = {
+  inicio: number;
+  tipo: string;
+  origen: "ia" | "manual";
+  /** Otra frase en vez del nombre (null o ausente = el nombre). */
+  aviso?: string | null;
+  /** Compases antes (null o ausente = los de la canción). */
+  anticipacion?: number | null;
+  /** 1 = esta sección no lleva aviso. */
+  sin_aviso?: number;
+};
 
 export async function listarSecciones(cancionId: number) {
   const db = await base();
   return db.select<FilaSeccion[]>(
-    "SELECT inicio, tipo, origen FROM secciones WHERE cancion_id = $1 ORDER BY inicio",
+    "SELECT inicio, tipo, origen, aviso, anticipacion, sin_aviso FROM secciones WHERE cancion_id = $1 ORDER BY inicio",
     [cancionId],
   );
 }
@@ -248,13 +288,44 @@ export async function guardarSecciones(cancionId: number, secciones: FilaSeccion
   const db = await base();
   await db.execute("DELETE FROM secciones WHERE cancion_id = $1", [cancionId]);
   for (const s of secciones) {
-    await db.execute("INSERT INTO secciones (cancion_id, inicio, tipo, origen) VALUES ($1, $2, $3, $4)", [
-      cancionId,
-      s.inicio,
-      s.tipo,
-      s.origen,
-    ]);
+    await db.execute(
+      "INSERT INTO secciones (cancion_id, inicio, tipo, origen, aviso, anticipacion, sin_aviso) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [cancionId, s.inicio, s.tipo, s.origen, s.aviso ?? null, s.anticipacion ?? null, s.sin_aviso ?? 0],
+    );
   }
+}
+
+// ---------- Avisos libres de la voz guía ----------
+
+/** Un aviso que agregó el encargado ("Bajamos", "Última vez") en un segundo de la canción. */
+export type AvisoLibre = { id: number; segundo: number; frase: string };
+
+export async function listarAvisos(cancionId: number) {
+  const db = await base();
+  return db.select<AvisoLibre[]>("SELECT id, segundo, frase FROM avisos WHERE cancion_id = $1 ORDER BY segundo", [
+    cancionId,
+  ]);
+}
+
+/** Crea el aviso y devuelve su id. */
+export async function crearAviso(cancionId: number, segundo: number, frase: string) {
+  const db = await base();
+  const r = await db.execute("INSERT INTO avisos (cancion_id, segundo, frase) VALUES ($1, $2, $3)", [
+    cancionId,
+    segundo,
+    frase,
+  ]);
+  return Number(r.lastInsertId);
+}
+
+export async function cambiarAviso(id: number, segundo: number, frase: string) {
+  const db = await base();
+  await db.execute("UPDATE avisos SET segundo = $1, frase = $2 WHERE id = $3", [segundo, frase, id]);
+}
+
+export async function borrarAviso(id: number) {
+  const db = await base();
+  await db.execute("DELETE FROM avisos WHERE id = $1", [id]);
 }
 
 // ---------- Colecciones ----------

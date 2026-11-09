@@ -93,6 +93,18 @@ pub fn click(
     motor.click(bpm, tiempos, inicio, conteo)
 }
 
+/// La voz guía: qué frase suena en qué segundo de la canción (la arma la interfaz).
+#[tauri::command]
+pub fn guia(avisos: Vec<(f64, String)>, motor: State<'_, Motor>) -> Result<(), String> {
+    motor.guia(&avisos)
+}
+
+/// Las frases de la voz guía ("Coro 1", "2", "Última vez"...) y cuánto dura cada una.
+#[tauri::command]
+pub fn frases_guia(motor: State<'_, Motor>) -> Vec<(String, f64)> {
+    motor.frases_guia()
+}
+
 #[tauri::command]
 pub fn estudio(velocidad: f32, semitonos: f32, motor: State<'_, Motor>) -> Result<(), String> {
     motor.estudio(velocidad, semitonos)

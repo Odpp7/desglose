@@ -114,5 +114,34 @@ pub fn migraciones() -> Vec<Migration> {
             ",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "voz guía",
+            sql: "
+                -- El aviso de cada sección sale solo de su nombre (\"Coro 1, 2, 3, 4\").
+                -- Esto guarda lo que el encargado cambió a mano:
+                --   aviso: otra frase en vez del nombre (NULL = el nombre).
+                --   anticipacion: compases antes (NULL = la de la canción).
+                --   sin_aviso: 1 = esta sección no lleva aviso.
+                ALTER TABLE secciones ADD COLUMN aviso        TEXT;
+                ALTER TABLE secciones ADD COLUMN anticipacion INTEGER;
+                ALTER TABLE secciones ADD COLUMN sin_aviso    INTEGER NOT NULL DEFAULT 0;
+
+                -- Avisos libres que agrega el encargado (\"Bajamos\", \"Última vez\").
+                CREATE TABLE avisos (
+                    id         INTEGER PRIMARY KEY,
+                    cancion_id INTEGER NOT NULL REFERENCES canciones(id) ON DELETE CASCADE,
+                    segundo    REAL    NOT NULL,
+                    frase      TEXT    NOT NULL
+                );
+
+                -- La guía de la canción: encendida, volumen y compases de anticipación
+                -- (NULL = automático: 1, o 2 si el compás dura menos de 1,6 s).
+                ALTER TABLE canciones ADD COLUMN guia_activa  INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE canciones ADD COLUMN guia_volumen REAL    NOT NULL DEFAULT 0.9;
+                ALTER TABLE canciones ADD COLUMN anticipacion INTEGER;
+            ",
+            kind: MigrationKind::Up,
+        },
     ]
 }

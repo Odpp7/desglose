@@ -71,4 +71,6 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 - 2026-11-08: la función de Modal es una dirección web protegida con una clave propia (secreto `desglose-clave`), que se pega en Ajustes como la de MVSep. Sin ella nadie puede gastar el crédito. Una canción a la vez y corte a los 10 minutos.
 - 2026-11-08: el respaldo para separar en Modal (BS-RoFormer-SW) no se conecta a la app por ahora: MVSep funciona y el respaldo gastaría el poco crédito. Queda en el historial de git.
 
+- 2026-11-09: la voz guía se calcula en TypeScript (`src/lib/guia.ts`): dónde dice qué frase. Rust solo hace sonar esa lista, y la misma lista se exportará en el paso 8 (lo que se escucha = lo que se exporta). Reemplaza la idea de `guide.rs` con la lógica en Rust. Frases que faltan: "Coro 4" dice "Coro"; Break y Sección solo cuentan. La voz propia (grabar o cargar) queda para el 7b.
+
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

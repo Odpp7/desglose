@@ -28,6 +28,13 @@ pub fn run() {
         .manage(Separacion::default())
         .manage(CancionCargada::default())
         .setup(|app| {
+            // Las frases de la voz guía: se leen una vez, de los recursos de la app.
+            let carpeta = app.path().resource_dir()?.join("voz");
+            match audio::guia::Banco::cargar(&carpeta) {
+                Ok(banco) => app.state::<Motor>().fijar_banco(banco),
+                Err(e) => eprintln!("{e}"),
+            }
+
             // Avisa a la interfaz la posición y el estado unas 30 veces por segundo.
             let app = app.handle().clone();
             thread::spawn(move || {
@@ -45,6 +52,8 @@ pub fn run() {
             commands::pausa,
             commands::buscar,
             commands::click,
+            commands::guia,
+            commands::frases_guia,
             commands::estudio,
             commands::exportar,
             commands::volumen,

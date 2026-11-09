@@ -43,6 +43,10 @@ export const motor = {
    */
   click: (bpm: number, tiempos: number, inicio: number, conteo: number) =>
     invoke<void>("click", { bpm, tiempos, inicio, conteo }),
+  /** La voz guía: `[segundo, frase]`. Es la pista que va después del click. */
+  guia: (avisos: [number, string][]) => invoke<void>("guia", { avisos }),
+  /** Las frases que tiene la voz guía, con los segundos que dura cada una. */
+  frasesGuia: async () => new Map(await invoke<[string, number][]>("frases_guia")),
   estudio: (velocidad: number, semitonos: number) =>
     invoke<void>("estudio", { velocidad, semitonos }),
   exportar: () => invoke<string>("exportar"),

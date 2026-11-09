@@ -1,5 +1,6 @@
 // El click de la canción abierta: lo que define el encargado (BPM, compás, primer
-// tiempo, conteo de entrada) y cómo suena (volumen, encendido).
+// tiempo, conteo de entrada) y cómo suena (volumen, encendido). También cómo suena
+// la voz guía (encendida, volumen, anticipación), que cuenta sobre el mismo compás.
 //
 // Vive en la página de la canción, porque lo usan dos partes: el panel del BPM
 // (en la fila de datos) y el editor (rejilla, marcador "1" y transporte).
@@ -20,6 +21,11 @@ export type Click = {
   /** 1 = volumen normal. */
   volumen: number;
   activo: boolean;
+  /** La voz guía va con el click: sin BPM no sabe dónde contar. */
+  guiaActiva: boolean;
+  guiaVolumen: number;
+  /** Compases antes de cada sección; null = automático (1, o 2 si el compás es corto). */
+  anticipacion: number | null;
 };
 
 /** Los compases que se ofrecen: nombre y tiempos. */
@@ -50,6 +56,9 @@ function desdeCancion(c: Cancion): Click {
     conteo: c.conteo,
     volumen: c.click_volumen,
     activo: !!c.click_activo,
+    guiaActiva: !!c.guia_activa,
+    guiaVolumen: c.guia_volumen,
+    anticipacion: c.anticipacion,
   };
 }
 
@@ -82,6 +91,9 @@ export function useClick(cancion: Cancion | null | undefined) {
         conteo: nuevo.conteo,
         click_volumen: nuevo.volumen,
         click_activo: nuevo.activo ? 1 : 0,
+        guia_activa: nuevo.guiaActiva ? 1 : 0,
+        guia_volumen: nuevo.guiaVolumen,
+        anticipacion: nuevo.anticipacion,
       }).catch((e) => console.error("No se pudo guardar el click", e));
     }, ESPERA_GUARDAR_MS));
   }

@@ -10,7 +10,7 @@ import {
   unirConSiguiente,
   type Seccion,
 } from "../../lib/secciones";
-import { ALTO_FRANJA as ALTO_SECCIONES } from "./LineaTiempo";
+import { ALTO_SECCIONES } from "./LineaTiempo";
 
 // La franja de secciones, entre la regla y las pistas:
 //

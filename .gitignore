@@ -6,6 +6,8 @@ samples/*
 *.flac
 *.m4a
 *.ogg
+# Excepción: las frases de la voz guía son parte de la app (34 WAV, 1,3 MB).
+!app/src-tauri/recursos/voz/*.wav
 
 # Modelos de IA y voces (se descargan, no se suben)
 *.onnx

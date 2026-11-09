@@ -5,8 +5,8 @@ import { escucharEstado, formatoTiempo } from "../../lib/engine";
 // La línea de tiempo: regla con los segundos, las ondas de todas las pistas en
 // UN solo canvas, y el cursor de reproducción.
 //
-// Debajo de la regla va la franja de secciones, que llega hecha desde el editor
-// (`franja`), porque necesita saber el ancho.
+// Debajo de la regla van las franjas de secciones y de voz guía, que llegan hechas
+// desde el editor (`franja`), porque necesitan saber el ancho.
 //
 // Clic en la onda: salta a ese punto. En una pista propia, ARRASTRAR la mueve
 // en el tiempo (su desfase) para alinearla con la canción.
@@ -23,8 +23,10 @@ import { escucharEstado, formatoTiempo } from "../../lib/engine";
 //     motor, sin pasar por el estado de React.
 
 export const ALTO_REGLA = 28;
-/** Alto de la franja de secciones, debajo de la regla (la dibuja `Secciones.tsx`). */
-export const ALTO_FRANJA = 30;
+/** Alto de las franjas bajo la regla: secciones (`Secciones.tsx`) y voz guía (`Guia.tsx`). */
+export const ALTO_SECCIONES = 30;
+export const ALTO_GUIA = 26;
+export const ALTO_FRANJA = ALTO_SECCIONES + ALTO_GUIA;
 
 export type FilaOnda = {
   clave: string;
@@ -52,14 +54,15 @@ type Props = {
   click: Click | null;
   /** Se soltó el marcador "1": el nuevo primer tiempo en segundos. */
   alMoverInicio: (inicio: number) => void;
-  /** La franja de secciones, dibujada con el ancho de la línea de tiempo. */
+  /** Las franjas de secciones y de guía, dibujadas con el ancho de la línea de tiempo. */
   franja: (ancho: number) => React.ReactNode;
+  franjaGuia: (ancho: number) => React.ReactNode;
 };
 
 /** Píxeles que hay que mover el mouse para que cuente como arrastre y no como clic. */
 const UMBRAL_ARRASTRE = 4;
 
-export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, click, alMoverInicio, franja }: Props) {
+export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, click, alMoverInicio, franja, franjaGuia }: Props) {
   const caja = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const cursor = useRef<HTMLDivElement>(null);
@@ -168,6 +171,7 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
     <div ref={caja} onMouseDown={alPresionar} className="relative min-w-0 cursor-pointer select-none">
       <Regla duracion={duracion} ancho={ancho} click={rejilla} />
       {franja(ancho)}
+      {franjaGuia(ancho)}
       <canvas ref={canvas} className="block" style={{ height: filas.length * altoFila }} />
       <div ref={sombra} className="pointer-events-none absolute top-0 left-0 h-full bg-ink-0/35" style={{ width: 0 }} />
       {rejilla && duracion > 0 && ancho > 0 && (

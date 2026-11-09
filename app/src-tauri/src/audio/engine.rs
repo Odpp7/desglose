@@ -16,6 +16,7 @@ use rtrb::{Consumer, RingBuffer};
 use serde::Serialize;
 
 use super::click::Click;
+use super::guia::{Banco, Guia};
 use super::render;
 use super::stretch::Estirador;
 use super::track;
@@ -64,16 +65,23 @@ pub(super) struct Compartido {
     conteo: AtomicU32,       // compases de entrada antes del primer tiempo
     velocidad: AtomicU32,    // f32 como bits; 1 = normal. Es solo para estudiar, no se exporta
     semitonos: AtomicU32,    // f32 como bits; 0 = tono original. Tampoco se exporta
-    pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click
+    pub(super) pistas: Vec<ControlPista>, // las pistas y, al final, el click y la guía
+    // La guía que arma la interfaz. Se cambia pocas veces (al editar), por eso va en
+    // un Mutex; la salida de audio solo lo mira cuando sube `version_guia`, y nunca espera.
+    guia: Mutex<Arc<Guia>>,
+    version_guia: AtomicU64,
 }
 
 impl Compartido {
     pub(super) fn new(total_pistas: usize) -> Self {
         let mut pistas: Vec<ControlPista> =
             (0..total_pistas).map(|_| ControlPista::new()).collect();
-        let click = ControlPista::new();
-        click.volumen.store(0.0f32.to_bits(), Ordering::Relaxed);
-        pistas.push(click);
+        // El click y la guía empiezan callados: la interfaz los enciende.
+        for _ in 0..2 {
+            let generada = ControlPista::new();
+            generada.volumen.store(0.0f32.to_bits(), Ordering::Relaxed);
+            pistas.push(generada);
+        }
 
         Self {
             reproduciendo: AtomicBool::new(false),
@@ -88,6 +96,8 @@ impl Compartido {
             velocidad: AtomicU32::new(1.0f32.to_bits()),
             semitonos: AtomicU32::new(0.0f32.to_bits()),
             pistas,
+            guia: Mutex::new(Arc::new(Guia::default())),
+            version_guia: AtomicU64::new(0),
         }
     }
 
@@ -105,6 +115,11 @@ impl Compartido {
             .store(tiempos_por_compas, Ordering::Relaxed);
     }
 
+    pub(super) fn fijar_guia(&self, guia: Arc<Guia>) {
+        *self.guia.lock().unwrap() = guia;
+        self.version_guia.fetch_add(1, Ordering::Relaxed);
+    }
+
     fn fijar_estudio(&self, velocidad: f32, semitonos: f32) {
         self.velocidad.store(velocidad.to_bits(), Ordering::Relaxed);
         self.semitonos.store(semitonos.to_bits(), Ordering::Relaxed);
@@ -112,7 +127,8 @@ impl Compartido {
 
     // Copia solo los controles, para exportar sin tocar lo que está sonando.
     fn copiar_controles(&self) -> Self {
-        let copia = Self::new(self.pistas.len() - 1);
+        let copia = Self::new(self.pistas.len() - 2);
+        copia.fijar_guia(self.guia.lock().unwrap().clone());
         copia.fijar_click(
             f32::from_bits(self.bpm.load(Ordering::Relaxed)),
             self.tiempos_por_compas.load(Ordering::Relaxed),
@@ -241,6 +257,8 @@ pub struct Estado {
 #[derive(Default)]
 pub struct Motor {
     sesion: Mutex<Option<Sesion>>,
+    /// Las frases de la voz guía. Se cargan una vez al abrir la app.
+    banco: Mutex<Arc<Banco>>,
 }
 
 impl Motor {
@@ -299,6 +317,21 @@ impl Motor {
 
     pub fn click(&self, bpm: f32, tiempos_por_compas: u32, inicio: f32, conteo: u32) -> Result<(), String> {
         self.con_compartido(|c| c.fijar_click(bpm, tiempos_por_compas, inicio, conteo))
+    }
+
+    pub fn fijar_banco(&self, banco: Banco) {
+        *self.banco.lock().unwrap() = Arc::new(banco);
+    }
+
+    /// Las frases que tiene la voz guía: nombre y segundos que dura.
+    pub fn frases_guia(&self) -> Vec<(String, f64)> {
+        self.banco.lock().unwrap().frases()
+    }
+
+    /// La guía de la canción: `(segundo, frase)`. Reemplaza la anterior.
+    pub fn guia(&self, avisos: &[(f64, String)]) -> Result<(), String> {
+        let guia = Arc::new(Guia::new(&self.banco.lock().unwrap(), avisos));
+        self.con_compartido(|c| c.fijar_guia(guia))
     }
 
     pub fn estudio(&self, velocidad: f32, semitonos: f32) -> Result<(), String> {
@@ -390,8 +423,10 @@ pub(super) struct Mezclador {
     pub(super) objetivos: Vec<f32>,
     paso_rampa: f32,
     rate: u32,
-    cuadro: u64, // cuadro de la canción que va a sonar; de aquí sale el click
+    cuadro: u64, // cuadro de la canción que va a sonar; de aquí salen el click y la guía
     click: Click,
+    guia: Arc<Guia>,
+    version_guia: u64,
     estirador: Estirador,
     velocidad: f32,
     en_estudio: bool, // true cuando hay que pasar por el estirador
@@ -415,6 +450,8 @@ impl Mezclador {
             rate,
             cuadro: (inicio * rate as f64).round() as u64,
             click: Click::new(120.0, 4, rate, 0.0, 0),
+            guia: Arc::new(Guia::default()),
+            version_guia: u64::MAX, // distinta de cualquiera: la primera lectura la toma
             estirador: Estirador::new(rate),
             velocidad: 1.0,
             en_estudio: false,
@@ -429,6 +466,16 @@ impl Mezclador {
         let inicio = f32::from_bits(self.compartido.inicio_click.load(Ordering::Relaxed));
         let conteo = self.compartido.conteo.load(Ordering::Relaxed);
         self.click = Click::new(bpm, tiempos, self.rate, inicio, conteo);
+
+        // La guía solo se vuelve a tomar si cambió, y sin esperar: si justo la
+        // están cambiando, se toma en el bloque siguiente.
+        let version = self.compartido.version_guia.load(Ordering::Relaxed);
+        if version != self.version_guia {
+            if let Ok(guia) = self.compartido.guia.try_lock() {
+                self.guia = guia.clone();
+                self.version_guia = version;
+            }
+        }
 
         self.velocidad = f32::from_bits(self.compartido.velocidad.load(Ordering::Relaxed));
         let semitonos = f32::from_bits(self.compartido.semitonos.load(Ordering::Relaxed));
@@ -452,20 +499,25 @@ impl Mezclador {
         }
     }
 
-    // Devuelve el siguiente cuadro con pistas y click, o None si alguna pista aún no tiene audio.
+    // Devuelve el siguiente cuadro con pistas, click y guía, o None si alguna pista aún no tiene audio.
     pub(super) fn siguiente_cuadro(&mut self) -> Option<(f32, f32)> {
         let posicion = self.cuadro as f64;
         let (izquierda, derecha) = self.siguiente_pistas()?;
-        let click = self.siguiente_click(posicion, 1.0);
-        Some((izquierda + click, derecha + click))
+        let generado = self.siguiente_generado(posicion, 1.0);
+        Some((izquierda + generado, derecha + generado))
     }
 
-    // El click va en la última posición de los controles.
-    fn siguiente_click(&mut self, posicion: f64, velocidad: f64) -> f32 {
-        let indice = self.colas.len();
-        let ganancia = &mut self.ganancias[indice];
-        *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
-        self.click.muestra_en(posicion, velocidad) * *ganancia
+    // El click y la guía: van después de las pistas en los controles (click, guía).
+    // No pasan por el estirador: no cambian de tono ni se estiran.
+    fn siguiente_generado(&mut self, posicion: f64, velocidad: f64) -> f32 {
+        let click = self.colas.len();
+        let guia = click + 1;
+        for indice in [click, guia] {
+            let ganancia = &mut self.ganancias[indice];
+            *ganancia += (self.objetivos[indice] - *ganancia).clamp(-self.paso_rampa, self.paso_rampa);
+        }
+        self.click.muestra_en(posicion, velocidad) * self.ganancias[click]
+            + self.guia.muestra_en(posicion, self.rate, velocidad) * self.ganancias[guia]
     }
 
     // Suma las pistas, sin el click. Avanza un cuadro en la canción.
@@ -556,7 +608,7 @@ impl Mezclador {
         let pedir = exacto.floor() as usize;
         self.resto = exacto - pedir as f64;
 
-        // Lo que se oye va atrasado por el estirador: el click se atrasa igual para ir junto.
+        // Lo que se oye va atrasado por el estirador: el click y la guía se atrasan igual.
         let posicion = self.cuadro as f64 - self.estirador.latencia(velocidad);
 
         let mut hubo_corte = false;
@@ -577,9 +629,9 @@ impl Mezclador {
         self.estirador.estirar(cuadros);
 
         for (numero, cuadro) in datos.chunks_mut(canales).enumerate() {
-            let click = self.siguiente_click(posicion + numero as f64 * velocidad, velocidad);
-            let izquierda = self.estirador.salida[numero * 2] + click;
-            let derecha = self.estirador.salida[numero * 2 + 1] + click;
+            let generado = self.siguiente_generado(posicion + numero as f64 * velocidad, velocidad);
+            let izquierda = self.estirador.salida[numero * 2] + generado;
+            let derecha = self.estirador.salida[numero * 2 + 1] + generado;
             poner_cuadro(cuadro, izquierda, derecha);
         }
 
@@ -749,7 +801,7 @@ mod pruebas {
 
         let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, inicio);
         // Las ganancias arrancan ya en su valor para no perder el primer click en la rampa.
-        mezclador.ganancias = vec![pista, click];
+        mezclador.ganancias = vec![pista, click, 0.0];
         compartido.reproduciendo.store(true, Ordering::Relaxed);
 
         // Se pide cuadro por cuadro: si el lector va atrasado se reintenta sin avanzar,
@@ -866,7 +918,7 @@ mod pruebas {
         compartido.fijar_estudio(velocidad, 0.0);
 
         let mut mezclador = Mezclador::new(vec![consumidor], compartido.clone(), rate, 0.0);
-        mezclador.ganancias = vec![pista, click];
+        mezclador.ganancias = vec![pista, click, 0.0];
         compartido.reproduciendo.store(true, Ordering::Relaxed);
 
         let salida = sonido_de_estudio(&mut mezclador, 30.0, rate);

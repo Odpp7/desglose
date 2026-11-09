@@ -9,9 +9,11 @@ import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
 import { datosPista } from "../../lib/instrumentos";
-import { alCompas, dividir, empezar, propuestaEnCurso, proponerConIa, useSecciones } from "../../lib/secciones";
+import { alCompas, dividir, empezar, propuestaEnCurso, proponerConIa, useSecciones, type Seccion } from "../../lib/secciones";
+import { alTiempo, calcularGuia, type Frases } from "../../lib/guia";
 import { CabeceraPista } from "./CabeceraPista";
-import { ALTO_FRANJA, ALTO_REGLA, LineaTiempo, type FilaOnda } from "./LineaTiempo";
+import { ALTO_FRANJA, ALTO_GUIA, ALTO_REGLA, ALTO_SECCIONES, LineaTiempo, type FilaOnda } from "./LineaTiempo";
+import { FranjaGuia } from "./Guia";
 import { FranjaSecciones, type AvanceIa } from "./Secciones";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -33,6 +35,9 @@ import { Transporte, type Estudio } from "./Transporte";
 //
 // Secciones: la franja bajo la regla. Teclas: S corta en la posición actual
 // (pegado al compás si hay click), Ctrl+Z deshace y Ctrl+Y rehace.
+// Voz guía: la franja bajo las secciones. Sale sola de las secciones y el click
+// (`src/lib/guia.ts`) y se le pasa al motor como una pista más (después del
+// click). G agrega un aviso libre donde está la canción.
 // Al entrar, carga las pistas en el motor. Si el motor ya las tenía igual (se
 // abrió otra cosa y se volvió), no las recarga: sigue en el mismo punto.
 
@@ -278,9 +283,61 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
     );
   }
 
+  // ---------- Voz guía ----------
+  const [frases, setFrases] = useState<Frases>(new Map());
+  const [libres, setLibres] = useState<db.AvisoLibre[]>([]);
+  useEffect(() => {
+    motor.frasesGuia().then(setFrases, (e) => setError(String(e)));
+    db.listarAvisos(id).then(setLibres, (e) => setError(String(e)));
+  }, [id]);
+
+  const guia = useMemo(
+    () => calcularGuia(secciones.secciones ?? [], libres, click, cancion.duracion_ms / 1000, frases),
+    [secciones.secciones, libres, click, cancion.duracion_ms, frases],
+  );
+  // Al motor solo cuando cambia de verdad lo que suena (no por cada dibujo).
+  const claveGuia = JSON.stringify(guia.eventos);
+  useEffect(() => {
+    if (cargas === 0) return;
+    motor.guia(guia.eventos).catch((e) => setError(String(e)));
+  }, [claveGuia, cargas]);
+  useEffect(() => {
+    if (cargas === 0) return;
+    const indice = desdeBase.length + 1; // la guía va después del click
+    motor.volumen(indice, click.guiaVolumen).catch((e) => setError(String(e)));
+    motor.mute(indice, !(click.guiaActiva && click.bpm !== null)).catch((e) => setError(String(e)));
+  }, [click.guiaActiva, click.guiaVolumen, click.bpm, cargas]);
+
+  function cambiarSeccionGuia(indice: number, cambio: Partial<Seccion>) {
+    const actuales = secciones.secciones;
+    if (!actuales) return;
+    secciones.cambiar(actuales.map((s, i) => (i === indice ? { ...s, ...cambio } : s)));
+  }
+
+  async function anadirAviso() {
+    if (!click.bpm) return setError("Primero define el BPM: la voz guía cuenta sobre el click.");
+    const segundo = Math.round(alTiempo(ultimo.current.posicion, click) * 1000) / 1000;
+    try {
+      const nuevoId = await db.crearAviso(id, segundo, "Todos");
+      setLibres((antes) => [...antes, { id: nuevoId, segundo, frase: "Todos" }]);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  function cambiarLibre(aviso: db.AvisoLibre) {
+    setLibres((antes) => antes.map((a) => (a.id === aviso.id ? aviso : a)));
+    db.cambiarAviso(aviso.id, aviso.segundo, aviso.frase).catch((e) => setError(String(e)));
+  }
+
+  function borrarLibre(idAviso: number) {
+    setLibres((antes) => antes.filter((a) => a.id !== idAviso));
+    db.borrarAviso(idAviso).catch((e) => setError(String(e)));
+  }
+
   // Teclas. Usan las funciones del último dibujo (por eso el ref).
-  const teclas = useRef({ cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer });
-  teclas.current = { cortarAqui, deshacer: secciones.deshacer, rehacer: secciones.rehacer };
+  const teclas = useRef({ cortarAqui, anadirAviso, deshacer: secciones.deshacer, rehacer: secciones.rehacer });
+  teclas.current = { cortarAqui, anadirAviso, deshacer: secciones.deshacer, rehacer: secciones.rehacer };
   useEffect(() => {
     const alTecla = (e: KeyboardEvent) => {
       const escribiendo = e.target instanceof HTMLInputElement && e.target.type !== "range";
@@ -295,6 +352,9 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
       } else if (!e.ctrlKey && e.code === "KeyS") {
         e.preventDefault();
         teclas.current.cortarAqui();
+      } else if (!e.ctrlKey && e.code === "KeyG") {
+        e.preventDefault();
+        teclas.current.anadirAviso();
       }
     };
     window.addEventListener("keydown", alTecla);
@@ -371,7 +431,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
                 Añadir pista
               </button>
             </div>
-            <div style={{ height: ALTO_FRANJA }} className="flex items-center gap-1 border-b border-line bg-ink-0 px-3">
+            <div style={{ height: ALTO_SECCIONES }} className="flex items-center gap-1 border-b border-line bg-ink-0 px-3">
               <span className="text-[10.5px] font-semibold tracking-wider text-fg-3 uppercase">Secciones</span>
               <button
                 onClick={cortarAqui}
@@ -386,6 +446,17 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
               <BotonChico etiqueta="Rehacer (Ctrl+Y)" deshabilitado={!secciones.puedeRehacer} onClick={secciones.rehacer}>
                 ↷
               </BotonChico>
+            </div>
+            <div style={{ height: ALTO_GUIA }} className="flex items-center gap-1 border-b border-line bg-ink-0 px-3">
+              <span className="text-[10.5px] font-semibold tracking-wider text-fg-3 uppercase">Voz guía</span>
+              <button
+                onClick={anadirAviso}
+                disabled={!click.bpm}
+                title="Agrega un aviso (Todos, Bajamos, Última vez...) donde está la canción (tecla G)"
+                className="ml-auto rounded-md border border-line-2 px-1.5 py-0.5 text-[11px] text-fg-2 hover:text-fg disabled:opacity-35"
+              >
+                + Aviso (G)
+              </button>
             </div>
             {visibles.map(({ pista, indice }) => (
               <CabeceraPista
@@ -419,6 +490,20 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
                 avanceIa={avanceIa}
                 desdeIa={desdeIa}
                 errorIa={errorIa}
+              />
+            )}
+            franjaGuia={(ancho) => (
+              <FranjaGuia
+                marcas={guia.marcas}
+                secciones={secciones.secciones}
+                click={click}
+                duracion={duracion}
+                ancho={ancho}
+                frases={[...frases.keys()]}
+                alCambiarSeccion={cambiarSeccionGuia}
+                alCambiarLibre={cambiarLibre}
+                alBorrarLibre={borrarLibre}
+                alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
               />
             )}
           />
