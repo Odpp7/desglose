@@ -22,7 +22,8 @@ import { escucharEstado, formatoTiempo } from "../../lib/engine";
 //   - El cursor es un <div> que se mueve con `transform` desde el aviso del
 //     motor, sin pasar por el estado de React.
 
-export const ALTO_REGLA = 28;
+const ALTO_FILA_REGLA = 20;
+export const ALTO_REGLA = ALTO_FILA_REGLA * 2;
 /** Alto de las franjas bajo la regla: secciones (`Secciones.tsx`) y voz guía (`Guia.tsx`). */
 export const ALTO_SECCIONES = 30;
 export const ALTO_GUIA = 26;
@@ -211,7 +212,8 @@ function MarcadorInicio(props: { x: number; arrastrando: boolean; alPresionar: (
       <div
         onMouseDown={props.alPresionar}
         title="Primer tiempo del click: arrástralo hasta el primer golpe de la canción"
-        className={`pointer-events-auto absolute top-0 left-0 grid h-[17px] w-[18px] cursor-ew-resize place-items-center rounded-r-md font-mono text-[11px] font-bold text-accent-ink ${
+        style={{ top: ALTO_FILA_REGLA + 1 }}
+        className={`pointer-events-auto absolute left-0 grid h-[17px] w-[18px] cursor-ew-resize place-items-center rounded-r-md font-mono text-[11px] font-bold text-accent-ink ${
           props.arrastrando ? "bg-fg" : "bg-accent hover:bg-fg"
         }`}
       >
@@ -249,26 +251,29 @@ function Regla({ duracion, ancho, click }: { duracion: number; ancho: number; cl
   }
 
   return (
-    <div style={{ height: ALTO_REGLA }} className="relative overflow-hidden border-b border-line bg-ink-0">
-      {marcas.map((s) => (
-        <span
-          key={s}
-          className="absolute top-0 bottom-0 border-l border-line-2 pt-1 pl-1.5 font-mono text-[10.5px] text-fg-3"
-          style={{ left: (s / duracion) * ancho }}
-        >
-          {Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}
-        </span>
-      ))}
-      {compases.map((c) => (
-        <span
-          key={c.numero}
-          className="absolute bottom-px pl-1 font-mono text-[9.5px] leading-none text-accent/70"
-          style={{ left: c.x }}
-        >
-          {/* El 1 ya lo muestra el marcador. */}
-          {c.numero === 1 ? "" : c.numero}
-        </span>
-      ))}
+    <div style={{ height: ALTO_REGLA }} className="overflow-hidden border-b border-line bg-ink-0">
+      <div style={{ height: ALTO_FILA_REGLA }} className="relative border-b border-line">
+        {marcas.map((s) => (
+          <span
+            key={s}
+            className="absolute inset-y-0 flex items-center border-l border-line-2 pl-1.5 font-mono text-[10.5px] text-fg-3"
+            style={{ left: (s / duracion) * ancho }}
+          >
+            {Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}
+          </span>
+        ))}
+      </div>
+      <div style={{ height: ALTO_FILA_REGLA - 1 }} className="relative">
+        {compases.map((c) => c.numero !== 1 && (
+          <span
+            key={c.numero}
+            className="absolute inset-y-0 flex items-center border-l border-accent/25 pl-1 font-mono text-[10.5px] text-accent/80"
+            style={{ left: c.x }}
+          >
+            {c.numero}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
