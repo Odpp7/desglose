@@ -50,7 +50,7 @@ La app se instala como un programa normal en **una sola PC que importa**: una **
 - **Cada etapa del backend es un archivo independiente** en `pipeline/`, que recibe archivos y devuelve archivos. Se debe poder probar sola.
 - Entregar **archivos completos**, no fragmentos sueltos.
 - **Commit al terminar cada paso que funcione**, con mensaje claro en español.
-- **Limpiar al avanzar.** `prototypes/` son pruebas, no la app: cada prototipo se borra cuando su código ya está en la app y probado (calendario en `docs/fase-1.md`, sección "Limpieza"). Antes de borrar, mover lo que no está en git (frases `.wav`, `.env`). Borrar también código y documentos que dejen de usarse.
+- **Limpiar al avanzar.** Borrar el código y los documentos que dejen de usarse. (Los prototipos de la Fase 0 ya se pasaron a la app y se borraron; quedan en el historial de git.)
 - Oscar es desarrollador frontend: domina React y TypeScript. **Rust y Python, explicarlos un poco más** (qué hace cada parte, en pocas líneas).
 
 ## Stack
@@ -76,8 +76,6 @@ desglose/
   docs/                # especificación, decisiones, fase 0, voces guía
   app/                 # app Tauri + React (ver app/README.md)
   backend/             # lo que corre en Modal (uv): proponer secciones con SongFormer
-  prototypes/          # pruebas de la Fase 0; se borran al pasar a la app
-    rpp-export/        # generar un .RPP y abrirlo en REAPER
   samples/             # canciones de prueba (NO se suben a git)
 ```
 

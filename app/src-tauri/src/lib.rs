@@ -3,6 +3,7 @@ mod audio;
 mod biblioteca;
 mod commands;
 mod db;
+mod export;
 mod mvsep;
 mod secciones;
 mod secuencia;
@@ -28,6 +29,7 @@ pub fn run() {
         .manage(Motor::default())
         .manage(Separacion::default())
         .manage(CancionCargada::default())
+        .manage(commands::CancelarExportacion::default())
         .setup(|app| {
             // Las frases de la voz guía: se leen una vez, de los recursos de la app.
             let carpeta = app.path().resource_dir()?.join("voz");
@@ -61,7 +63,9 @@ pub fn run() {
             commands::guardar_frase_guia,
             commands::restaurar_frase_guia,
             commands::estudio,
-            commands::exportar,
+            commands::exportar_paquete,
+            commands::cancelar_exportacion,
+            commands::abrir_carpeta,
             commands::volumen,
             commands::mute,
             commands::solo,

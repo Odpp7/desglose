@@ -56,7 +56,6 @@ export const motor = {
   restaurarFraseGuia: (nombre: string) => invoke<void>("restaurar_frase_guia", { nombre }),
   estudio: (velocidad: number, semitonos: number) =>
     invoke<void>("estudio", { velocidad, semitonos }),
-  exportar: () => invoke<string>("exportar"),
   volumen: (indice: number, valor: number) => invoke<void>("volumen", { indice, valor }),
   mute: (indice: number, valor: boolean) => invoke<void>("mute", { indice, valor }),
   solo: (indice: number, valor: boolean) => invoke<void>("solo", { indice, valor }),

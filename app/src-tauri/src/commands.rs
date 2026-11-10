@@ -2,14 +2,16 @@
 // Casi todas solo pasan el pedido al motor.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Deserialize;
 use tauri::ipc::Response;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::audio::engine::Motor;
 use crate::audio::ondas;
 use crate::biblioteca;
+use crate::export;
 
 /// Una pista para cargar: su archivo dentro de la carpeta de la canción
 /// ("pistas/voz-lider.flac", "propias/1731.wav") y cuántos milisegundos está
@@ -148,11 +150,46 @@ pub fn estudio(velocidad: f32, semitonos: f32, motor: State<'_, Motor>) -> Resul
     motor.estudio(velocidad, semitonos)
 }
 
-// `async` la saca del hilo principal: la ventana no se congela mientras exporta.
-#[tauri::command(async)]
-pub fn exportar(motor: State<'_, Motor>) -> Result<String, String> {
-    let destino = motor.exportar()?;
-    Ok(destino.to_string_lossy().into_owned())
+/// Si se pidió cancelar la exportación en curso.
+#[derive(Default)]
+pub struct CancelarExportacion(AtomicBool);
+
+/// Exporta el paquete para REAPER (ver `export/mod.rs`). Corre en un hilo aparte:
+/// la ventana no se congela. Avisa el avance con el evento "avance-exportar"
+/// (de 0 a 1) y devuelve la carpeta creada.
+#[tauri::command]
+pub async fn exportar_paquete(app: AppHandle, id: i64, pedido: export::Pedido) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cancelar = &app.state::<CancelarExportacion>().0;
+        cancelar.store(false, Ordering::Relaxed);
+        let carpeta = export::exportar(
+            &pedido,
+            |archivo| biblioteca::ruta_en_cancion(&app, id, archivo),
+            |avisos| app.state::<Motor>().guia_para(avisos),
+            cancelar,
+            |fraccion| {
+                let _ = app.emit("avance-exportar", fraccion);
+            },
+        )?;
+        Ok(carpeta.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("La exportación se detuvo: {e}"))?
+}
+
+#[tauri::command]
+pub fn cancelar_exportacion(cancelar: State<'_, CancelarExportacion>) {
+    cancelar.0.store(true, Ordering::Relaxed);
+}
+
+/// Abre una carpeta en el Explorador de Windows (para ver el paquete exportado).
+#[tauri::command]
+pub fn abrir_carpeta(ruta: String) -> Result<(), String> {
+    std::process::Command::new("explorer")
+        .arg(&ruta)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("No se pudo abrir la carpeta: {e}"))
 }
 
 #[tauri::command]

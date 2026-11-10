@@ -9,7 +9,8 @@ import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
 import { datosPista } from "../../lib/instrumentos";
-import { alCompas, dividir, empezar, propuestaEnCurso, proponerConIa, useSecciones, type Seccion } from "../../lib/secciones";
+import { alCompas, dividir, empezar, nombres, propuestaEnCurso, proponerConIa, useSecciones, type Seccion } from "../../lib/secciones";
+import { Exportar, type Paquete } from "./Exportar";
 import { alTiempo, calcularGuia, type Frases } from "../../lib/guia";
 import { CabeceraPista } from "./CabeceraPista";
 import { FrasesGuia } from "./FrasesGuia";
@@ -69,6 +70,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
   const [ondas, setOndas] = useState<Map<string, Uint8Array>>(new Map());
   const [mostrarVacias, setMostrarVacias] = useState(false);
   const [porQuitar, setPorQuitar] = useState<Pista | null>(null);
+  const [exportando, setExportando] = useState(false);
   const [error, setError] = useState("");
   const zona = useRef<HTMLDivElement>(null);
   const [altoZona, setAltoZona] = useState(0);
@@ -403,6 +405,52 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
     if (i >= 0) cambiar(i, pistas[i], { desfase_ms: Math.round(desfase * 1000) });
   }
 
+  /**
+   * Lo que se exporta: lo que se escucha ahora. Pistas con R (las vacías no, porque
+   * casi no suenan), click y guía solo si están encendidos, la velocidad y el tono
+   * del transporte. Todo en la línea de la app (con los compases antes de la música).
+   */
+  function armarPaquete(): Paquete {
+    const conBpm = click.bpm !== null;
+    const etiquetas = nombres(secciones.secciones ?? []);
+    const lista = secciones.secciones ?? [];
+    return {
+      titulo: cancion.titulo,
+      tono: cancion.tono,
+      bpm: click.bpm,
+      tiempos: click.compas,
+      velocidad: estudio.velocidad,
+      semitonos: estudio.semitonos,
+      duracion: duracionTotal,
+      pistas: pistas
+        .filter((p) => p.en_export && !p.vacia)
+        .map((p) => ({
+          nombre: datosPista(p).nombre,
+          archivo: p.archivo,
+          desfase: p.desfase_ms / 1000 + entrada,
+          volumen: p.volumen,
+        })),
+      click:
+        conBpm && click.activo
+          ? {
+              bpm: clickLinea.bpm!,
+              tiempos: clickLinea.compas,
+              inicio: clickLinea.inicio,
+              conteo: clickLinea.conteo,
+              volumen: click.volumen,
+            }
+          : null,
+      guia: conBpm && click.guiaActiva ? guia.eventos : null,
+      volumenGuia: click.guiaVolumen,
+      secciones: lista.map((s, i) => ({
+        nombre: etiquetas[i],
+        inicio: s.inicio + entrada,
+        fin: (lista[i + 1]?.inicio ?? duracion) + entrada,
+      })),
+      fuera: pistas.filter((p) => !p.en_export && !p.vacia).map((p) => datosPista(p).nombre),
+    };
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {error && (
@@ -547,6 +595,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
         alCambiarClick={alCambiarClick}
         alCambiarEstudio={cambiarEstudio}
         alError={setError}
+        alExportar={() => setExportando(true)}
       />
 
       {editarFrases && (
@@ -555,6 +604,9 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
           alCambiar={async () => setFrases(await motor.frasesGuia())}
           alCerrar={() => setEditarFrases(false)}
         />
+      )}
+      {exportando && (
+        <Exportar cancionId={id} paquete={armarPaquete()} alCerrar={() => setExportando(false)} />
       )}
       {porQuitar && (
         <Confirmar

@@ -73,4 +73,6 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 
 - 2026-11-09: la voz guía se calcula en TypeScript (`src/lib/guia.ts`): dónde dice qué frase. Rust solo hace sonar esa lista, y la misma lista se exportará en el paso 8 (lo que se escucha = lo que se exporta). Reemplaza la idea de `guide.rs` con la lógica en Rust. Frases que faltan: "Coro 4" dice "Coro"; Break y Sección solo cuentan. La voz propia (grabar o cargar) queda para el 7b.
 
+- 2026-11-09: exportar = lo que se escucha. Van las pistas con R (no las vacías; M y S son solo para escuchar), con su volumen; CLICK y GUIA solo si están encendidos; la velocidad y el tono del transporte (el click y la guía no cambian de tono). Fuera de 80–120% o ±4 semitonos se avisa pero se permite. 44,1 kHz por ahora. `Split.wav` y `.zip` quedan para después.
+
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

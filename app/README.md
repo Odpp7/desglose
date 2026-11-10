@@ -8,7 +8,7 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `app/`: rutas y el marco: barra fina, biblioteca a la izquierda, canción a la derecha.
   - `features/library/`: la biblioteca (carpetas, canciones, agregar y arrastrar).
   - `features/song/`: la canción abierta (botones Separar, datos, crear secuencia).
-  - `features/editor/`: pistas, ondas, mezclador, transporte, el panel del click (`EditorClick.tsx`) la franja de secciones (`Secciones.tsx`) y la de voz guía (`Guia.tsx`).
+  - `features/editor/`: pistas, ondas, mezclador, transporte, el panel del click (`EditorClick.tsx`) la franja de secciones (`Secciones.tsx`) la de voz guía (`Guia.tsx`) y la ventana de exportar (`Exportar.tsx`).
   - `features/settings/`: Ajustes (las claves de MVSep y de Modal).
   - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto, estado).
   - `lib/engine.ts`: las órdenes al motor de audio (cargar canción, ondas, play...).
@@ -26,6 +26,7 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `src/biblioteca.rs`: copiar una canción a su carpeta, medir su duración y borrarla.
   - `src/mvsep.rs`, `src/secuencia.rs`: separar con MVSep por partes, retomar y cancelar.
   - `src/audio/nivel.rs`, `src/audio/ondas.rs`: pistas vacías y formas de onda.
+  - `src/export/`: el paquete para REAPER (`mod.rs`: los WAV en una pasada; `rpp.rs`: el proyecto).
   - `src/ajustes.rs`: las claves de MVSep y de Modal.
   - `src/secciones.rs`: proponer secciones con la IA (sube la canción a `backend/secciones.py` en Modal, pregunta el avance y retoma si se cerró la app).
 

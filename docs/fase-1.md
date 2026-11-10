@@ -4,21 +4,22 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (9 de noviembre)
 
-**Pasos 1 a 7 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el paso 8: exportar para REAPER.** Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 7 terminados ✅** y **8 escrito, falta probarlo en REAPER**, en la rama `fase-1` (todavía no unida a `main`). Luego sigue el paso 9 (Estudio: bucle). Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
 - **Una sola pantalla**, como la captura de referencia de Oscar (estilo StemDeck): biblioteca siempre a la izquierda (carpetas y canciones), la canción abierta a la derecha. Ver la memoria/decisión del diseño antes de tocar la interfaz.
 - **Biblioteca:** agregar arrastrando o con botón, carpetas, buscar, renombrar, mover, borrar. SQLite con 7 migraciones (`src-tauri/src/db.rs`; para cambiar tablas se agrega una migración nueva, nunca se edita una vieja).
 - **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Un botón verde vuelve a la pista original y se puede volver a activar con los audios guardados. En canciones antiguas que perdieron la pista original, la app pide permiso para recuperarla con un trabajo de MVSep. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
-- **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. Exportar está en el transporte, apagado hasta su paso.
+- **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. "Exportar a REAPER" en el transporte.
 - **Click:** "BPM" en la fila de datos abre su panel: BPM con − y +, "Tocar el tempo" (clic o tecla T), compás (2/4, 3/4, 4/4, 6/8, 12/8), conteo de entrada (0 a 2 compases) y primer tiempo (‹ ›, "Aquí"). En la línea de tiempo: rejilla de compases y tiempos, números de compás en la regla y el marcador "1" que se arrastra. En el transporte: encendido y volumen. Se guarda en SQLite (migración 4). Un solo tempo por canción; cambios de tempo y subdivisión quedan para después. Si el conteo no cabe antes del primer tiempo, se puede añadir espacio antes de la música.
 - **Entrada antes de la música:** en el panel de BPM, «Antes de la música» añade de 0 a 4 compases para el click y la guía. El motor recibe el mismo retraso para todas las pistas. Las secciones y los avisos conservan sus posiciones respecto del audio original. La preferencia se guarda por canción en SQLite (migración 7).
 - **Secciones (6a):** franja bajo la regla. Sin secciones: "Marcar a mano" o "Proponer con IA" (6b). Tecla S o "Cortar": corta donde está la canción, pegado al compás si hay click. Clic en una sección: escuchar, nombre (Intro, Verso, Pre-coro, Coro, Post-coro, Puente, Instrumental, Solo, Break, Final), unir, borrar. Bordes arrastrables (Alt: sin pegarse). Ctrl+Z / Ctrl+Y. Cubren toda la canción, una tras otra; se numeran solas (Verso 1, Verso 2; si hay una sola, sin número). SQLite: migración 5, tabla `secciones` con `origen` ia/manual.
 - **Secciones con IA (6b):** `backend/secciones.py` tiene dos direcciones web en Modal: `iniciar` (recibe la canción, lanza SongFormer y responde al momento con el número del trabajo) y `estado` (en fila, preparando, analizando, listo). SongFormer en CPU: unos 3 minutos y 2 centavos. Rust guarda el número en `secciones-ia.txt` en la carpeta de la canción y pregunta cada 3 s; la interfaz muestra una barra con la etapa y el tiempo. Si se cierra la app, al abrir la canción retoma el mismo trabajo. Solo responde con la clave (secreto `desglose-clave` en Modal; en la app, "Clave de Modal" en Ajustes). Se creó con `backend/scripts/crear-clave.ps1`. Rust sube la canción y pregunta el avance (`src-tauri/src/secciones.rs`); la interfaz traduce, junta las seguidas del mismo tipo (la IA parte un coro en pedazos), pega al compás y guarda solo si la canción sigue sin secciones. Si falla, muestra el motivo y "Marcar a mano" sigue ahí. El trabajo sigue aunque se cambie de canción.
 - **Voz guía (7a):** las 34 frases de `es_MX-claude-high` están en `src-tauri/recursos/voz/` (con excepción en `.gitignore`) y van en el instalador. Rust las carga una vez (`audio/guia.rs`) y las hace sonar como el click: siguen la velocidad pero no se estiran ni cambian de tono. Dónde va cada frase lo calcula `src/lib/guia.ts` (1 compás antes, o 2 si el compás dura menos de 1,6 s; la primera en el compás de conteo; nombre largo recorta el conteo; 6/8 cuenta en 2; sin frase "Coro 4" dice "Coro"; Break y Sección solo cuentan). Franja "VOZ GUÍA": clic para cambiar frase, anticipación o quitar el aviso; arrastrar cambia los compases; "+ Aviso (G)" agrega frases libres. Bloque "Guía" en el transporte. SQLite: migración 6.
 - **Voz propia (7b):** en «Voz guía → Frases…» se puede grabar con micrófono o importar un WAV de hasta 10 segundos y 4 MB. Las frases se guardan localmente y sirven para todas las canciones. «Restaurar original» recupera la voz incluida en la app.
-- **Pruebas:** 35 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
+- **Exportar (8):** sale lo que se escucha. `src-tauri/src/export/mod.rs` escribe en una sola pasada (un hilo lector por pista, como al reproducir) un WAV de 24 bits por pista con R encendida (las vacías no; M y S no cuentan), `CLICK.wav` y `GUIA.wav` solo si están encendidos, todos del mismo largo desde 0, y `export/rpp.rs` el `.RPP` con CLICK y GUIA primero, el tempo y las secciones como regiones. Con otra velocidad o tono, las pistas pasan por el estirador (se descarta su atraso inicial para quedar alineadas) y el click y la guía no se estiran; BPM y regiones se reajustan. Carpeta: `Título - 147bpm - F#m (105%, +2)`. 44,1 kHz, sin convertir. En 6/8 y 12/8 el `.RPP` escribe el tempo en negras (BPM/2): **verificar en REAPER**. Pendiente: `Split.wav` y `.zip`.
+- **Pruebas:** 43 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
 
@@ -127,7 +128,7 @@ Todo está probado. Se mueve y se adapta, no se reescribe de cero.
 | Origen | Qué es | Destino |
 | --- | --- | --- |
 | ~~`prototypes/audio-engine/`~~ | Motor y órdenes de Tauri | Ya en `app/src-tauri/` (paso 1) |
-| `prototypes/rpp-export/src/rpp.rs` | Escritor de `.RPP` | `app/src-tauri/src/export/rpp.rs` |
+| ~~`prototypes/rpp-export/src/rpp.rs`~~ | Escritor de `.RPP` | Ya en `app/src-tauri/src/export/rpp.rs` (paso 8) |
 | ~~`prototypes/ai-pipeline/mvsep.py`~~ | Cadena de MVSep | Ya en Rust (paso 3) |
 | ~~`prototypes/ai-pipeline/secciones.py`~~ | SongFormer en Modal | Ya en `backend/secciones.py` (paso 6) |
 | ~~`prototypes/ai-pipeline/separar.py`~~ | Respaldo con BS-RoFormer-SW | No se conectó: queda en el historial de git |
@@ -147,7 +148,7 @@ Las pruebas que no sirvieron y `mvsep.py` (ya en Rust) se borraron el 8 de novie
 | ~~`prototypes/audio-engine/`~~ | Paso 1 ✅ |
 | ~~`prototypes/ai-pipeline/`~~ | Paso 6 ✅ |
 | ~~`prototypes/voice-piper/`~~ | Paso 7 ✅ |
-| `prototypes/rpp-export/` | Paso 8 |
+| ~~`prototypes/rpp-export/`~~ | Paso 8 ✅ (ya no queda `prototypes/`) |
 
 Cuidado antes de borrar: hay cosas que **no están en git** y se perderían para siempre:
 

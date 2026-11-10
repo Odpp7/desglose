@@ -31,13 +31,14 @@ type Props = {
   alCambiarClick: (cambio: Partial<Click>) => void;
   alCambiarEstudio: (estudio: Estudio) => void;
   alError: (e: string) => void;
+  alExportar: () => void;
 };
 
 const VELOCIDAD_MINIMA = 0.5;
 const VELOCIDAD_MAXIMA = 1.5;
 const SEMITONOS_MAXIMOS = 6;
 
-export function Transporte({ duracion, estudio, tono, click, alCambiarClick, alCambiarEstudio, alError }: Props) {
+export function Transporte({ duracion, estudio, tono, click, alCambiarClick, alCambiarEstudio, alError, alExportar }: Props) {
   const [reproduciendo, setReproduciendo] = useState(false);
   const tiempo = useRef<HTMLSpanElement>(null);
   const sonando = useRef(false);
@@ -199,9 +200,9 @@ export function Transporte({ duracion, estudio, tono, click, alCambiarClick, alC
 
       <div className="ml-auto flex items-center pr-2">
         <button
-          disabled
-          title="Llega en el paso 8"
-          className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-35"
+          onClick={alExportar}
+          title="Arma el paquete para REAPER tal como suena ahora (pistas, click, guía, velocidad y tono)"
+          className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink hover:brightness-110"
         >
           Exportar a REAPER
         </button>

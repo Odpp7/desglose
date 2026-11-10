@@ -17,7 +17,6 @@ use serde::Serialize;
 
 use super::click::Click;
 use super::guia::{Banco, Guia};
-use super::render;
 use super::stretch::Estirador;
 use super::track;
 
@@ -101,6 +100,7 @@ impl Compartido {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn fijar_volumen(&self, indice: usize, valor: f32) {
         self.pistas[indice]
             .volumen
@@ -123,28 +123,6 @@ impl Compartido {
     fn fijar_estudio(&self, velocidad: f32, semitonos: f32) {
         self.velocidad.store(velocidad.to_bits(), Ordering::Relaxed);
         self.semitonos.store(semitonos.to_bits(), Ordering::Relaxed);
-    }
-
-    // Copia solo los controles, para exportar sin tocar lo que está sonando.
-    fn copiar_controles(&self) -> Self {
-        let copia = Self::new(self.pistas.len() - 2);
-        copia.fijar_guia(self.guia.lock().unwrap().clone());
-        copia.fijar_click(
-            f32::from_bits(self.bpm.load(Ordering::Relaxed)),
-            self.tiempos_por_compas.load(Ordering::Relaxed),
-            f32::from_bits(self.inicio_click.load(Ordering::Relaxed)),
-            self.conteo.load(Ordering::Relaxed),
-        );
-        for (indice, pista) in self.pistas.iter().enumerate() {
-            copia.fijar_volumen(indice, pista.volumen());
-            copia.pistas[indice]
-                .mute
-                .store(pista.mute.load(Ordering::Relaxed), Ordering::Relaxed);
-            copia.pistas[indice]
-                .solo
-                .store(pista.solo.load(Ordering::Relaxed), Ordering::Relaxed);
-        }
-        copia
     }
 }
 
@@ -349,27 +327,10 @@ impl Motor {
         self.con_compartido(|c| c.fijar_estudio(velocidad, semitonos))
     }
 
-    // Exporta junto a la carpeta de las pistas y devuelve la ruta del archivo.
-    // No se guarda dentro de esa carpeta, porque se cargaría como una pista más.
-    pub fn exportar(&self) -> Result<PathBuf, String> {
-        let (rutas, desfases, controles) = {
-            let sesion = self.sesion.lock().unwrap();
-            let sesion = sesion.as_ref().ok_or("Primero carga las pistas")?;
-            (
-                sesion.rutas.clone(),
-                sesion.desfases.clone(),
-                sesion.compartido.copiar_controles(),
-            )
-        };
-
-        let carpeta = rutas[0]
-            .parent()
-            .ok_or("La carpeta de las pistas no es válida")?;
-        let nombre = carpeta.file_name().unwrap_or_default().to_string_lossy();
-        let destino = carpeta.with_file_name(format!("{nombre}-mezcla.wav"));
-
-        render::exportar(&rutas, &desfases, controles, &destino)?;
-        Ok(destino)
+    /// Arma una voz guía con las frases del motor, sin tocar lo que está sonando
+    /// (para exportar).
+    pub fn guia_para(&self, avisos: &[(f64, String)]) -> Guia {
+        Guia::new(&self.banco.lock().unwrap(), avisos)
     }
 
     pub fn volumen(&self, indice: usize, valor: f32) -> Result<(), String> {

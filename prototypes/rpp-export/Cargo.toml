@@ -1,5 +1,0 @@
-[package]
-name = "rpp-export"
-version = "0.1.0"
-description = "Prototipo: generar un proyecto de REAPER"
-edition = "2024"
