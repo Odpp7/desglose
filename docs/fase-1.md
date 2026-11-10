@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (9 de noviembre)
 
-**Pasos 1 a 8 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). Probado en REAPER el 9 de noviembre. **Sigue el paso 10: Entrega** (instalador y actualización automática). El paso 9 (Estudio) queda para una actualización futura. Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 8 y 10a–10b terminados ✅** (9, Estudio, queda para después). Versiones publicadas en GitHub Releases: **v0.1.0** y **v0.1.1**; la actualización automática se probó en otra PC el 9 de noviembre (0.1.0 → 0.1.1). `main` y `fase-1` están iguales. **Sigue el 10c: instalar y probar en la PC de la iglesia** (`docs/entrega.md`).
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -108,7 +108,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 7. Voz guía ✅ | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o importar WAV |
 | 8. Exportar ✅ | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
 | 9. Estudio ⏸ | Ya está el botón en la barra lateral con "Próximamente" (v0.1.1). **Para una actualización futura**: una sección aparte en la barra lateral, al lado de Biblioteca, con bucle y más herramientas. (Velocidad y tono para escuchar ya funcionan en el editor desde el paso 4b) |
-| 10. Entrega | Instalador, actualización automática y prueba en la PC real |
+| 10. Entrega (10a y 10b ✅, falta 10c) | Instalador, actualización automática y prueba en la PC real |
 
 Tras el paso 8 ya se puede usar una secuencia real en un culto.
 
