@@ -38,3 +38,35 @@ no necesita nada más: ni Python, ni Node, ni FFmpeg.
 - Cuánto tardó cada parte (MVSep, IA de secciones, exportar).
 - Si hubo cortes de audio o la interfaz se sintió lenta.
 - Qué cambiaría el encargado en el paquete (nombres, orden de las pistas, 44,1 o 48 kHz).
+
+## Clave de firma de las actualizaciones (una sola vez)
+
+La app solo acepta versiones firmadas con esta clave. **Si se pierde, las PCs
+instaladas ya no podrán actualizarse** (habría que reinstalar a mano).
+
+1. En una terminal de PowerShell, desde la carpeta `app`:
+   `npx tauri signer generate -w "$env:USERPROFILE\.tauri\desglose.key"`
+   Pide una contraseña: elige una y guárdala. Crea dos archivos:
+   `desglose.key` (privada, **nunca** al proyecto ni a un chat) y
+   `desglose.key.pub` (pública: va en `tauri.conf.json`).
+2. Guarda una copia de `desglose.key` y de la contraseña en un lugar seguro
+   (USB y gestor de contraseñas).
+3. En GitHub, en el repositorio: *Settings → Secrets and variables → Actions →
+   New repository secret*, crea dos secretos:
+   - `TAURI_SIGNING_PRIVATE_KEY`: el contenido de `desglose.key`. Para copiarlo sin
+     mostrarlo: `Get-Content "$env:USERPROFILE\.tauri\desglose.key" -Raw | Set-Clipboard`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: la contraseña.
+4. La clave pública (`desglose.key.pub`) se pega en `app/src-tauri/tauri.conf.json`,
+   en `plugins → updater → pubkey`.
+
+## Publicar una versión nueva
+
+La versión se cambia en un solo lugar: `app/package.json`. Desde la carpeta `app`:
+
+1. `npm version 0.2.0 --no-git-tag-version` (con el número nuevo).
+2. Commit: `git commit -am "Versión 0.2.0"` y `git push`.
+3. Etiqueta: `git tag v0.2.0` y `git push origin v0.2.0`.
+
+GitHub arma, firma y publica en unos 15 minutos (pestaña *Actions* del repositorio).
+Al terminar, la versión aparece en *Releases* con el instalador. Las PCs con
+Desglose ven el aviso "Hay una versión nueva" la próxima vez que abren la app.

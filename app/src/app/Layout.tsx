@@ -7,6 +7,7 @@ import { avisarCambio } from "../lib/cambios";
 import { importarCanciones } from "../features/library/importar";
 import { PanelBiblioteca } from "../features/library/PanelBiblioteca";
 import { useSoltarArchivos } from "../features/library/useSoltarArchivos";
+import { AvisoVersion } from "./AvisoVersion";
 
 // El marco de toda la app (como en la captura de referencia):
 //
@@ -119,6 +120,7 @@ export function Layout() {
       {panel && <PanelBiblioteca seleccionada={seleccionada} alAgregar={elegirArchivos} alError={mostrarError} />}
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-ink-1">
+        <AvisoVersion />
         {aviso && (
           <div
             role={aviso.tipo === "error" ? "alert" : "status"}

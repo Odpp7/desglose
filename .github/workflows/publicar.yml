@@ -1,0 +1,63 @@
+# Publica una versión nueva de Desglose.
+#
+# Se activa al subir una etiqueta que empieza con "v" (por ejemplo v0.2.0).
+# En una máquina Windows de GitHub (gratis en repositorios públicos):
+#   1. compila la app y arma el instalador NSIS,
+#   2. lo firma con la clave de Oscar (guardada en los secretos del repositorio),
+#   3. crea la versión en la página Releases con el instalador y latest.json.
+# Las PCs con Desglose instalado leen ese latest.json al abrir la app.
+#
+# Pasos para publicar: docs/entrega.md → "Publicar una versión nueva".
+
+name: Publicar versión
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # para crear la versión en Releases
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Guarda lo compilado de Rust entre versiones: la siguiente tarda menos.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Instalar dependencias de la interfaz
+        run: npm ci
+        working-directory: app
+
+      - name: Compilar, firmar y publicar
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          # Solo aquí se generan los archivos firmados de actualización (en la PC de
+          # desarrollo no está la clave privada, y el instalador se arma igual).
+          args: --config src-tauri/tauri.publicar.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: Desglose ${{ github.ref_name }}
+          releaseBody: |
+            Para instalar: baja el archivo que termina en `x64-setup.exe` y ábrelo.
+            Si Windows dice "Windows protegió su PC": Más información → Ejecutar de todas formas.
+            Las PCs que ya tienen Desglose se actualizan desde la app (aviso arriba al abrirla).
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
