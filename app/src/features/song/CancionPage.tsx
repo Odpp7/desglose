@@ -67,7 +67,7 @@ export function CancionPage() {
       <div className="m-3 mb-0 flex gap-3 rounded-xl border border-line bg-ink-0 p-3">
         <div className="flex min-w-0 flex-1 items-center">
           {lista ? (
-            <BotonesSeparar cancion={cancion} pistas={separadas} hayClave={hayClave} />
+            <BotonesSeparar key={cancion.id} cancion={cancion} pistas={separadas} hayClave={hayClave} />
           ) : (
             <p className="m-0 text-fg-3">Primero hay que crear la secuencia: separar los instrumentos.</p>
           )}

@@ -90,16 +90,26 @@ export function filaMvsep() {
  * la base pasa a "error"; una parte opcional deja la canción "lista"
  * (ya tiene sus pistas) y solo anota el error.
  */
-export async function crearSecuencia(cancionId: number, modo: Modo = "base") {
+export async function crearSecuencia(cancionId: number, modo: Modo = "base", restaurar = false) {
   if (modo === "base") await cambiarEstado(cancionId, "separando");
   avances.set(cancionId, { modo, etapas: [], etapa: 0, detalle: "Empezando", desde: Date.now() });
   notificar();
   avisarCambio();
   try {
-    await invoke("crear_secuencia", { id: cancionId, modo });
+    await invoke("crear_secuencia", { id: cancionId, modo, restaurar });
   } catch (e) {
     await terminarConError(cancionId, String(e));
   }
+}
+
+/** Devuelve false si los audios para el cambio aún no están en la PC. */
+export async function alternarSeparacion(cancionId: number, modo: Modo, restaurar: boolean) {
+  const pistas = await invoke<PistaRust[] | null>("alternar_separacion", { id: cancionId, modo, restaurar });
+  if (!pistas) return false;
+  await guardarPistas(cancionId, pistas);
+  await cambiarEstado(cancionId, "lista");
+  avisarCambio();
+  return true;
 }
 
 async function terminarConError(cancionId: number, error: string) {
@@ -172,7 +182,10 @@ async function ponerAlDia() {
     if (enDisco && enDisco.length > 0) {
       // Se comparan solo las separadas: las propias no están en `lista.json`.
       const enBase = (await listarPistas(cancion.id)).filter((p) => !p.propia);
-      const iguales = enBase.map((p) => p.instrumento).join() === enDisco.map((p) => p.instrumento).join();
+      const iguales = enBase.length === enDisco.length && enBase.every((p, i) =>
+        p.instrumento === enDisco[i].instrumento && p.archivo === enDisco[i].archivo &&
+        !!p.vacia === enDisco[i].vacia,
+      );
       if (cancion.estado !== "lista" || !iguales) {
         await guardarPistas(cancion.id, enDisco);
         await cambiarEstado(cancion.id, "lista");

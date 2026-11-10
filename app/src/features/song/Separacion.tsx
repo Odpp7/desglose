@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { Confirmar } from "../../components/Confirmar";
 import type { Cancion } from "../../lib/db";
 import type { PistaMotor } from "../../lib/engine";
 import {
+  alternarSeparacion,
   cancelarSecuencia,
   crearSecuencia,
   filaMvsep,
@@ -177,8 +179,32 @@ export function BotonesSeparar({
   hayClave: boolean;
 }) {
   const avance = useAvance(cancion.id);
+  const [cambiando, setCambiando] = useState(false);
+  const [recuperar, setRecuperar] = useState<Modo | null>(null);
+  const [errorCambio, setErrorCambio] = useState("");
   const tiene = (instrumento: string, sonando = false) =>
     pistas.some((p) => p.instrumento === instrumento && (!sonando || !p.vacia));
+
+  async function alternar(modo: Modo, hecha: boolean, sonando: boolean) {
+    setCambiando(true);
+    setErrorCambio("");
+    try {
+      if (await alternarSeparacion(cancion.id, modo, hecha)) return;
+      if (!hecha && !sonando) {
+        setErrorCambio("La pista original está casi vacía. No se inició una separación.");
+      } else if (!hayClave) {
+        setErrorCambio("Ese audio todavía no está en la PC. Agrega la clave de MVSep en Ajustes para obtenerlo.");
+      } else if (hecha) {
+        setRecuperar(modo);
+      } else {
+        await crearSecuencia(cancion.id, modo);
+      }
+    } catch (e) {
+      setErrorCambio(String(e));
+    } finally {
+      setCambiando(false);
+    }
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -186,28 +212,27 @@ export function BotonesSeparar({
         <span className="mr-1 text-[10.5px] font-semibold tracking-wider text-fg-3 uppercase">Separar</span>
         {OPCIONALES.map((o) => {
           const hecha = tiene(o.hecha);
-          const aplica = tiene(o.pista, true);
+          const aplica = tiene(o.pista);
           const corriendo = avance?.modo === o.modo;
-          const deshabilitado = hecha || !aplica || !!avance || !hayClave;
+          const deshabilitado = (!hecha && !aplica) || !!avance || cambiando;
           const titulo = hecha
-            ? "Ya está separada"
+            ? "Volver a la pista original"
             : !aplica
               ? `Esta canción casi no tiene ${o.pista === "otros" ? "\"otros\"" : o.pista}`
-              : !hayClave
-                ? "Falta la clave de MVSep (Ajustes)"
-                : `${o.explicacion}. ${o.trabajos === 1 ? "1 trabajo" : `${o.trabajos} trabajos`} en la fila de MVSep.`;
+              : `${o.explicacion}. Si aún no está guardada, requiere ${o.trabajos === 1 ? "1 trabajo" : `${o.trabajos} trabajos`} en MVSep.`;
           return (
             <button
               key={o.modo}
               disabled={deshabilitado}
+              aria-pressed={hecha}
               title={titulo}
-              onClick={() => crearSecuencia(cancion.id, o.modo)}
+              onClick={() => alternar(o.modo, hecha, tiene(o.pista, true))}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${
                 corriendo
                   ? "animate-pulse border-accent bg-[#22305e] text-accent"
                   : hecha
                     ? "border-[#2a5a4f] bg-[#173a33] text-[#7fe0c8]"
-                    : !aplica || !hayClave
+                    : !aplica
                       ? "border-line text-fg-3 opacity-50"
                       : "border-line-2 bg-ink-2 text-fg hover:border-accent/70 disabled:opacity-50"
               }`}
@@ -219,6 +244,19 @@ export function BotonesSeparar({
         })}
       </div>
 
+      {recuperar && (
+        <Confirmar
+          titulo="Recuperar la pista original"
+          texto="Esta canción se separó con una versión que borraba la pista original. Para recuperarla hay que hacer un trabajo en MVSep. Tus pistas actuales se conservan."
+          boton="Recuperar con MVSep"
+          alCancelar={() => setRecuperar(null)}
+          alConfirmar={() => {
+            setRecuperar(null);
+            void crearSecuencia(cancion.id, recuperar, true).catch((e) => setErrorCambio(String(e)));
+          }}
+        />
+      )}
+      {errorCambio && <p role="alert" className="m-0 text-[12px] text-[#ffb3bd]">{errorCambio}</p>}
       {avance ? (
         <AvanceCorto avance={avance} />
       ) : cancion.error ? (
@@ -231,7 +269,7 @@ export function BotonesSeparar({
           </Link>
         </p>
       ) : (
-        <p className="m-0 text-[12px] text-fg-3">Opcional: cada una hace la fila de MVSep aparte.</p>
+        <p className="m-0 text-[12px] text-fg-3">Pulsa un botón verde para volver a la pista original.</p>
       )}
     </div>
   );

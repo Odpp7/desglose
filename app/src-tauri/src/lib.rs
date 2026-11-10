@@ -75,6 +75,7 @@ pub fn run() {
             secciones::proponer_secciones,
             secciones::secciones_ia_pendiente,
             secuencia::crear_secuencia,
+            secuencia::alternar_separacion,
             secuencia::secuencia_en_curso,
             secuencia::cancelar_secuencia,
             secuencia::fila_mvsep,
