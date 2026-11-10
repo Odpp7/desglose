@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (9 de noviembre)
 
-**Pasos 1 a 8 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). Probado en REAPER el 9 de noviembre. **Sigue el paso 9: Estudio (bucle).** Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 8 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). Probado en REAPER el 9 de noviembre. **Sigue el paso 10: Entrega** (instalador y actualización automática). El paso 9 (Estudio) queda para una actualización futura. Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -19,6 +19,7 @@ Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 - **Voz guía (7a):** las 34 frases de `es_MX-claude-high` están en `src-tauri/recursos/voz/` (con excepción en `.gitignore`) y van en el instalador. Rust las carga una vez (`audio/guia.rs`) y las hace sonar como el click: siguen la velocidad pero no se estiran ni cambian de tono. Dónde va cada frase lo calcula `src/lib/guia.ts` (1 compás antes, o 2 si el compás dura menos de 1,6 s; la primera en el compás de conteo; nombre largo recorta el conteo; 6/8 cuenta en 2; sin frase "Coro 4" dice "Coro"; Break y Sección solo cuentan). Franja "VOZ GUÍA": clic para cambiar frase, anticipación o quitar el aviso; arrastrar cambia los compases; "+ Aviso (G)" agrega frases libres. Bloque "Guía" en el transporte. SQLite: migración 6.
 - **Voz propia (7b):** en «Voz guía → Frases…» se puede grabar con micrófono o importar un WAV de hasta 10 segundos y 4 MB. Las frases se guardan localmente y sirven para todas las canciones. «Restaurar original» recupera la voz incluida en la app.
 - **Exportar (8):** sale lo que se escucha. `src-tauri/src/export/mod.rs` escribe en una sola pasada (un hilo lector por pista, como al reproducir) un WAV de 24 bits por pista con R encendida (las vacías no; M y S no cuentan), `CLICK.wav` y `GUIA.wav` solo si están encendidos, todos del mismo largo desde 0, y `export/rpp.rs` el `.RPP` con CLICK y GUIA primero, el tempo y las secciones como regiones. Con otra velocidad o tono, las pistas pasan por el estirador (se descarta su atraso inicial para quedar alineadas) y el click y la guía no se estiran; BPM y regiones se reajustan. Carpeta: `Título - 147bpm - F#m (105%, +2)`. 44,1 kHz, sin convertir. En 6/8 y 12/8 el `.RPP` escribe el tempo en negras (BPM/2): **verificar en REAPER**. Pendiente: `Split.wav` y `.zip`.
+- **Instalador (10a):** `npm run tauri build` arma `target/release/bundle/nsis/Desglose_<versión>_x64-setup.exe`: **5,7 MB** (límite 30). Español, sin pedir administrador (`currentUser`), con el instalador pequeño de WebView2. Ícono desde `src-tauri/icons/desglose.svg` (`npx tauri icon`). Medido instalado en la PC de desarrollo, con una canción sonando: **unos 240 MB de memoria propia** (motor + su WebView; límite 1 GB). La lista para instalar en la iglesia está en `docs/entrega.md`; la clave de Modal se lleva con `backend/scripts/copiar-clave.ps1`.
 - **Pruebas:** 43 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
@@ -105,7 +106,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 6. Secciones ✅ | Dos caminos: la IA propone o el encargado las marca a mano (sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía ✅ | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o importar WAV |
 | 8. Exportar ✅ | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
-| 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |
+| 9. Estudio ⏸ | **Para una actualización futura**: una sección aparte en la barra lateral, al lado de Biblioteca, con bucle y más herramientas. (Velocidad y tono para escuchar ya funcionan en el editor desde el paso 4b) |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
 
 Tras el paso 8 ya se puede usar una secuencia real en un culto.

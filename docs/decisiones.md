@@ -75,4 +75,6 @@ Todo lo de alcance está decidido; solo falta elegir las canciones de prueba.
 
 - 2026-11-09: exportar = lo que se escucha. Van las pistas con R (no las vacías; M y S son solo para escuchar), con su volumen; CLICK y GUIA solo si están encendidos; la velocidad y el tono del transporte (el click y la guía no cambian de tono). Fuera de 80–120% o ±4 semitonos se avisa pero se permite. 44,1 kHz por ahora. `Split.wav` y `.zip` quedan para después.
 
+- 2026-11-09: Estudio (bucle y demás) sale de esta versión. Será una sección aparte en la barra lateral izquierda, al lado de Biblioteca, en una actualización futura. Motivo: lo importante ahora son las secuencias; se pasa directo a la entrega (paso 10).
+
 Si una decisión cambia, se agrega aquí con la fecha y el motivo.

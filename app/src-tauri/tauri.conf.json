@@ -27,6 +27,20 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "Desglose",
+    "copyright": "Proyecto personal, uso libre",
+    "category": "Music",
+    "shortDescription": "Secuencias para equipos de alabanza",
+    "longDescription": "Separa una canción en instrumentos, arma click, secciones y voz guía, y exporta el paquete para REAPER.",
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    },
     "resources": {
       "recursos/voz/": "voz/"
     },
