@@ -4,7 +4,7 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 ## Dónde quedamos (9 de noviembre)
 
-**Pasos 1 a 7 terminados ✅** y **8 escrito, falta probarlo en REAPER**, en la rama `fase-1` (todavía no unida a `main`). Luego sigue el paso 9 (Estudio: bucle). Ver la tabla "Los 10 pasos" más abajo.
+**Pasos 1 a 8 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). Probado en REAPER el 9 de noviembre. **Sigue el paso 9: Estudio (bucle).** Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
@@ -104,7 +104,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 5. Click ✅ | BPM, compás, inicio y conteo de entrada. Botón "tocar el tempo" y primer tiempo arrastrable sobre la onda |
 | 6. Secciones ✅ | Dos caminos: la IA propone o el encargado las marca a mano (sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía ✅ | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o importar WAV |
-| 8. Exportar | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
+| 8. Exportar ✅ | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
 | 9. Estudio | Bucle. (Velocidad, de 50% a 150%, y tono, ±6 semitonos, ya funcionan desde el paso 4b) |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
 
