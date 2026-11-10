@@ -167,7 +167,7 @@ export function FrasesGuia({ frases, alCambiar, alCerrar }: Props) {
         await motor.restaurarFraseGuia(frase);
       } else if (audio) {
         const bytes = new Uint8Array(await audio.arrayBuffer());
-        await motor.guardarFraseGuia(frase, Array.from(bytes));
+        await motor.guardarFraseGuia(frase, bytes);
       }
       await alCambiar();
       setRestaurables(await motor.frasesGuiaRestaurables());

@@ -150,7 +150,7 @@ fn ruta_propia(carpeta: &Path, nombre: &str) -> Result<PathBuf, String> {
     Ok(carpeta.join(format!("{codigo}.wav")))
 }
 
-fn decodificar_nombre(codigo: &str) -> Option<String> {
+pub(crate) fn decodificar_nombre(codigo: &str) -> Option<String> {
     if codigo.len() % 2 != 0 || !codigo.is_ascii() {
         return None;
     }

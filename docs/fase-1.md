@@ -2,14 +2,14 @@
 
 Este documento es el punto de partida de la app real. Reúne lo decidido y lo aprendido en la Fase 0, para empezar en una sesión nueva sin repetir nada. Si algo choca con `docs/especificacion.md`, manda este documento y `docs/decisiones.md`.
 
-## Dónde quedamos (7 de noviembre)
+## Dónde quedamos (9 de noviembre)
 
 **Pasos 1 a 7 terminados ✅** en la rama `fase-1` (todavía no unida a `main`). **Sigue el paso 8: exportar para REAPER.** Ver la tabla "Los 10 pasos" más abajo.
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
 - **Una sola pantalla**, como la captura de referencia de Oscar (estilo StemDeck): biblioteca siempre a la izquierda (carpetas y canciones), la canción abierta a la derecha. Ver la memoria/decisión del diseño antes de tocar la interfaz.
-- **Biblioteca:** agregar arrastrando o con botón, carpetas, buscar, renombrar, mover, borrar. SQLite con 3 migraciones (`src-tauri/src/db.rs`; para cambiar tablas se agrega una migración nueva, nunca se edita una vieja).
+- **Biblioteca:** agregar arrastrando o con botón, carpetas, buscar, renombrar, mover, borrar. SQLite con 7 migraciones (`src-tauri/src/db.rs`; para cambiar tablas se agrega una migración nueva, nunca se edita una vieja).
 - **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Un botón verde vuelve a la pista original y se puede volver a activar con los audios guardados. En canciones antiguas que perdieron la pista original, la app pide permiso para recuperarla con un trabajo de MVSep. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
 - **Editor:** ondas (calculadas una vez en Rust, archivos `.ondas`), pistas que llenan el alto, mezclador con dB, M, S y R (va a REAPER), todo guardado en SQLite. Pistas propias con desfase (arrastrar o ‹ ›) y ✕. Tonalidad (nombre) en la fila de datos; velocidad y tono al escuchar en el transporte. Exportar está en el transporte, apagado hasta su paso.
 - **Click:** "BPM" en la fila de datos abre su panel: BPM con − y +, "Tocar el tempo" (clic o tecla T), compás (2/4, 3/4, 4/4, 6/8, 12/8), conteo de entrada (0 a 2 compases) y primer tiempo (‹ ›, "Aquí"). En la línea de tiempo: rejilla de compases y tiempos, números de compás en la regla y el marcador "1" que se arrastra. En el transporte: encendido y volumen. Se guarda en SQLite (migración 4). Un solo tempo por canción; cambios de tempo y subdivisión quedan para después. Si el conteo no cabe antes del primer tiempo, se puede añadir espacio antes de la música.
@@ -18,7 +18,7 @@ Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 - **Secciones con IA (6b):** `backend/secciones.py` tiene dos direcciones web en Modal: `iniciar` (recibe la canción, lanza SongFormer y responde al momento con el número del trabajo) y `estado` (en fila, preparando, analizando, listo). SongFormer en CPU: unos 3 minutos y 2 centavos. Rust guarda el número en `secciones-ia.txt` en la carpeta de la canción y pregunta cada 3 s; la interfaz muestra una barra con la etapa y el tiempo. Si se cierra la app, al abrir la canción retoma el mismo trabajo. Solo responde con la clave (secreto `desglose-clave` en Modal; en la app, "Clave de Modal" en Ajustes). Se creó con `backend/scripts/crear-clave.ps1`. Rust sube la canción y pregunta el avance (`src-tauri/src/secciones.rs`); la interfaz traduce, junta las seguidas del mismo tipo (la IA parte un coro en pedazos), pega al compás y guarda solo si la canción sigue sin secciones. Si falla, muestra el motivo y "Marcar a mano" sigue ahí. El trabajo sigue aunque se cambie de canción.
 - **Voz guía (7a):** las 34 frases de `es_MX-claude-high` están en `src-tauri/recursos/voz/` (con excepción en `.gitignore`) y van en el instalador. Rust las carga una vez (`audio/guia.rs`) y las hace sonar como el click: siguen la velocidad pero no se estiran ni cambian de tono. Dónde va cada frase lo calcula `src/lib/guia.ts` (1 compás antes, o 2 si el compás dura menos de 1,6 s; la primera en el compás de conteo; nombre largo recorta el conteo; 6/8 cuenta en 2; sin frase "Coro 4" dice "Coro"; Break y Sección solo cuentan). Franja "VOZ GUÍA": clic para cambiar frase, anticipación o quitar el aviso; arrastrar cambia los compases; "+ Aviso (G)" agrega frases libres. Bloque "Guía" en el transporte. SQLite: migración 6.
 - **Voz propia (7b):** en «Voz guía → Frases…» se puede grabar con micrófono o importar un WAV de hasta 10 segundos y 4 MB. Las frases se guardan localmente y sirven para todas las canciones. «Restaurar original» recupera la voz incluida en la app.
-- **Pruebas:** 33 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
+- **Pruebas:** 35 de Rust (`cargo test --release` desde `app/src-tauri`, unos 4 minutos). La que suena por la tarjeta real se corre aparte.
 
 Lo que se aprendió trabajando en la Fase 1 (para no repetir errores):
 

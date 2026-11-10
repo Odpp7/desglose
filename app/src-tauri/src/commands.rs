@@ -110,15 +110,26 @@ pub fn frases_guia_restaurables(motor: State<'_, Motor>) -> Vec<String> {
     motor.frases_restaurables()
 }
 
-#[tauri::command(async)]
+/// Guarda una frase propia. El WAV llega como bytes tal cual (no como una lista
+/// de números en JSON, que para 4 MB serían unos 14 MB de texto), y el nombre en
+/// el encabezado "nombre", escrito en hexadecimal para que los acentos viajen bien.
+#[tauri::command]
 pub fn guardar_frase_guia(
     app: AppHandle,
     motor: State<'_, Motor>,
-    nombre: String,
-    wav: Vec<u8>,
+    pedido: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(wav) = pedido.body() else {
+        return Err("No llegó el audio de la frase.".into());
+    };
+    let nombre = pedido
+        .headers()
+        .get("nombre")
+        .and_then(|v| v.to_str().ok())
+        .and_then(crate::audio::guia::decodificar_nombre)
+        .ok_or("No llegó el nombre de la frase.")?;
     let carpeta = app.path().app_data_dir().map_err(|e| e.to_string())?.join("voz-propia");
-    motor.editar_banco(|banco| banco.guardar_propia(&carpeta, &nombre, &wav))
+    motor.editar_banco(|banco| banco.guardar_propia(&carpeta, &nombre, wav))
 }
 
 #[tauri::command(async)]

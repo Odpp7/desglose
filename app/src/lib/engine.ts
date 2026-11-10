@@ -48,7 +48,11 @@ export const motor = {
   /** Las frases que tiene la voz guía, con los segundos que dura cada una. */
   frasesGuia: async () => new Map(await invoke<[string, number][]>("frases_guia")),
   frasesGuiaRestaurables: () => invoke<string[]>("frases_guia_restaurables"),
-  guardarFraseGuia: (nombre: string, wav: number[]) => invoke<void>("guardar_frase_guia", { nombre, wav }),
+  /** El WAV va como bytes; el nombre, en hexadecimal (UTF-8) en un encabezado. */
+  guardarFraseGuia: (nombre: string, wav: Uint8Array) =>
+    invoke<void>("guardar_frase_guia", wav, {
+      headers: { nombre: Array.from(new TextEncoder().encode(nombre), (b) => b.toString(16).padStart(2, "0")).join("") },
+    }),
   restaurarFraseGuia: (nombre: string) => invoke<void>("restaurar_frase_guia", { nombre }),
   estudio: (velocidad: number, semitonos: number) =>
     invoke<void>("estudio", { velocidad, semitonos }),
