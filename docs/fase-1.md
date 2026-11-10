@@ -107,7 +107,7 @@ Cambios aprobados frente a `docs/especificacion.md`:
 | 6. Secciones ✅ | Dos caminos: la IA propone o el encargado las marca a mano (sin internet); mover, renombrar, dividir, unir y borrar, con deshacer |
 | 7. Voz guía ✅ | Se coloca sola según las secciones. Cada aviso se mueve, cambia, borra o añade. Voz propia: grabar con micrófono o importar WAV |
 | 8. Exportar ✅ | WAV por pista, CLICK, GUIA y `.RPP` con regiones. Puede salir con otra velocidad y otro tono |
-| 9. Estudio ⏸ | **Para una actualización futura**: una sección aparte en la barra lateral, al lado de Biblioteca, con bucle y más herramientas. (Velocidad y tono para escuchar ya funcionan en el editor desde el paso 4b) |
+| 9. Estudio ⏸ | Ya está el botón en la barra lateral con "Próximamente" (v0.1.1). **Para una actualización futura**: una sección aparte en la barra lateral, al lado de Biblioteca, con bucle y más herramientas. (Velocidad y tono para escuchar ya funcionan en el editor desde el paso 4b) |
 | 10. Entrega | Instalador, actualización automática y prueba en la PC real |
 
 Tras el paso 8 ya se puede usar una secuencia real en un culto.

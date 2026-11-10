@@ -52,6 +52,15 @@ export const IconoAjustes = (p: Props) => (
   </Trazo>
 );
 
+/** Audífonos: la sección Estudio. */
+export const IconoEstudio = (p: Props) => (
+  <Trazo {...p}>
+    <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+    <rect x="3" y="14" width="4" height="6" rx="1.5" />
+    <rect x="17" y="14" width="4" height="6" rx="1.5" />
+  </Trazo>
+);
+
 export const IconoMas = (p: Props) => (
   <Trazo {...p}>
     <path d="M12 5v14M5 12h14" />

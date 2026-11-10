@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { IconoAjustes, IconoBiblioteca, IconoSubir, Logo } from "../components/icons";
+import { IconoAjustes, IconoBiblioteca, IconoEstudio, IconoSubir, Logo } from "../components/icons";
 import { FORMATOS } from "../lib/archivos";
 import { avisarCambio } from "../lib/cambios";
 import { importarCanciones } from "../features/library/importar";
@@ -14,7 +14,8 @@ import { AvisoVersion } from "./AvisoVersion";
 //   ┌──┬─────────────┬──────────────────────────────┐
 //   │  │ Biblioteca  │  La canción abierta (editor)  │
 //   │▤ │ carpetas y  │  o Ajustes                    │
-//   │⚙ │ canciones   │                               │
+//   │🎧│ canciones   │  o Estudio (próximamente)     │
+//   │⚙ │             │                               │
 //   └──┴─────────────┴──────────────────────────────┘
 //
 // La biblioteca está siempre a la izquierda: elegir una canción la abre al lado.
@@ -109,6 +110,9 @@ export function Layout() {
           titulo={panel ? "Plegar la biblioteca" : "Mostrar la biblioteca"}
         >
           <IconoBiblioteca />
+        </BotonBarra>
+        <BotonBarra label="Estudio" activo={pathname === "/estudio"} onClick={() => navegar("/estudio")}>
+          <IconoEstudio />
         </BotonBarra>
         <div className="mt-auto">
           <BotonBarra label="Ajustes" activo={pathname === "/ajustes"} onClick={() => navegar("/ajustes")}>

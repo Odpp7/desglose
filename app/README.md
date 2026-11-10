@@ -9,6 +9,7 @@ La app real de Desglose. Plan y estado en `docs/fase-1.md`.
   - `features/library/`: la biblioteca (carpetas, canciones, agregar y arrastrar).
   - `features/song/`: la canción abierta (botones Separar, datos, crear secuencia).
   - `features/editor/`: pistas, ondas, mezclador, transporte, el panel del click (`EditorClick.tsx`) la franja de secciones (`Secciones.tsx`) la de voz guía (`Guia.tsx`) y la ventana de exportar (`Exportar.tsx`).
+  - `features/study/`: Estudio. Por ahora solo "Próximamente" (llega en una actualización futura).
   - `features/settings/`: Ajustes (las claves de MVSep y de Modal).
   - `components/`: piezas comunes (íconos, menú, confirmar, campo de texto, estado).
   - `lib/engine.ts`: las órdenes al motor de audio (cargar canción, ondas, play...).
