@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { segundosPorCompas, type Click } from "../../lib/click";
+import { clickEnLinea, segundosPorCompas, type Click } from "../../lib/click";
 import { escucharEstado, formatoTiempo } from "../../lib/engine";
 
 // La línea de tiempo: regla con los segundos, las ondas de todas las pistas en
@@ -48,6 +48,7 @@ type Props = {
   altoFila: number;
   /** Segundos. */
   duracion: number;
+  entrada: number;
   alSaltar: (segundos: number) => void;
   /** Se soltó una pista propia en otro lugar: su nuevo desfase en segundos. */
   alMover: (clave: string, desfase: number) => void;
@@ -63,17 +64,18 @@ type Props = {
 /** Píxeles que hay que mover el mouse para que cuente como arrastre y no como clic. */
 const UMBRAL_ARRASTRE = 4;
 
-export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, click, alMoverInicio, franja, franjaGuia }: Props) {
+export function LineaTiempo({ filas, altoFila, duracion, entrada, alSaltar, alMover, click, alMoverInicio, franja, franjaGuia }: Props) {
   const caja = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const cursor = useRef<HTMLDivElement>(null);
   const sombra = useRef<HTMLDivElement>(null);
+  const arrastreCursor = useRef<AbortController | null>(null);
   const [ancho, setAncho] = useState(0);
   // Mientras se arrastra una pista: cuál y adónde va (solo para dibujarla ahí).
   const [arrastre, setArrastre] = useState<{ clave: string; desfase: number } | null>(null);
   // Mientras se arrastra el marcador "1": dónde va el primer tiempo.
   const [inicioArrastre, setInicioArrastre] = useState<number | null>(null);
-  const rejilla = click && inicioArrastre !== null ? { ...click, inicio: inicioArrastre } : click;
+  const rejilla = click ? clickEnLinea(inicioArrastre === null ? click : { ...click, inicio: inicioArrastre }, entrada) : null;
 
   // El ancho cambia al agrandar la ventana: se mide con ResizeObserver.
   useEffect(() => {
@@ -86,26 +88,52 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
 
   useEffect(() => {
     const dibujadas = arrastre
-      ? filas.map((f) => (f.clave === arrastre.clave ? { ...f, desfase: arrastre.desfase } : f))
+      ? filas.map((f) => (f.clave === arrastre.clave ? { ...f, desfase: arrastre.desfase + entrada } : f))
       : filas;
     dibujarOndas(canvas.current, dibujadas, altoFila, ancho, duracion, rejilla);
     // De la rejilla importan solo estos datos: el volumen del click no la cambia.
-  }, [filas, altoFila, ancho, duracion, arrastre, rejilla?.bpm, rejilla?.compas, rejilla?.inicio, rejilla?.conteo]);
+  }, [filas, altoFila, ancho, duracion, entrada, arrastre, rejilla?.bpm, rejilla?.compas, rejilla?.inicio, rejilla?.conteo]);
 
   // Cursor y parte ya sonada: directo al DOM desde el aviso del motor.
   const anchoActual = useRef(0);
   anchoActual.current = ancho;
+  function dibujarCursor(x: number) {
+    if (cursor.current) cursor.current.style.transform = `translateX(${x}px)`;
+    if (sombra.current) sombra.current.style.width = `${x}px`;
+  }
+
   useEffect(() => {
     const dejar = escucharEstado((estado) => {
-      if (duracion <= 0) return;
-      const x = Math.min(1, estado.posicion / duracion) * anchoActual.current;
-      if (cursor.current) cursor.current.style.transform = `translateX(${x}px)`;
-      if (sombra.current) sombra.current.style.width = `${x}px`;
+      if (duracion <= 0 || arrastreCursor.current) return;
+      dibujarCursor(Math.min(1, estado.posicion / duracion) * anchoActual.current);
     });
     return () => {
+      arrastreCursor.current?.abort();
+      arrastreCursor.current = null;
       dejar.then((f) => f());
     };
   }, [duracion]);
+
+  function arrastrarCursor(evento: React.MouseEvent, rect: DOMRect) {
+    evento.preventDefault();
+    arrastreCursor.current?.abort();
+    const controlador = new AbortController();
+    arrastreCursor.current = controlador;
+    const opciones = { signal: controlador.signal };
+    const xDe = (e: MouseEvent) => Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    dibujarCursor(xDe(evento.nativeEvent));
+    window.addEventListener("mousemove", (e) => dibujarCursor(xDe(e)), opciones);
+    window.addEventListener("mouseup", (e) => {
+      controlador.abort();
+      arrastreCursor.current = null;
+      // Un solo salto al soltar: el motor reabre las pistas una vez.
+      alSaltar((xDe(e) / rect.width) * duracion);
+    }, opciones);
+    window.addEventListener("blur", () => {
+      controlador.abort();
+      arrastreCursor.current = null;
+    }, opciones);
+  }
 
   // Arrastrar el "1". El mouse se sigue en toda la ventana hasta soltarlo.
   function arrastrarInicio(evento: React.MouseEvent) {
@@ -117,7 +145,7 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
     const alMoverMouse = (e: MouseEvent) => {
       const s = click.inicio + (e.clientX - inicioX) * segundosPorPixel;
       // Se redondea a milisegundos: es lo que se guarda.
-      nuevo = Math.round(Math.max(0, Math.min(duracion, s)) * 1000) / 1000;
+      nuevo = Math.round(Math.max(0, Math.min(duracion - entrada, s)) * 1000) / 1000;
       setInicioArrastre(nuevo);
     };
     const alSoltar = () => {
@@ -131,6 +159,7 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
   }
 
   function alPresionar(evento: React.MouseEvent) {
+    if (evento.button !== 0) return;
     const rect = caja.current?.getBoundingClientRect();
     if (!rect || duracion <= 0 || ancho <= 0) return;
     const segundosPorPixel = duracion / ancho;
@@ -140,21 +169,22 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
 
     const saltar = (x: number) => alSaltar(Math.max(0, Math.min(1, (x - rect.left) / rect.width)) * duracion);
 
-    // En la regla o en una pista normal: es un clic para saltar.
+    // En la regla o en una pista normal, se puede hacer clic o arrastrar el cursor.
     if (!fila?.movible) {
-      saltar(inicioX);
+      arrastrarCursor(evento, rect);
       return;
     }
 
     // En una pista propia: si se mueve, se arrastra; si no, se salta.
     let movido = false;
-    let nuevo = fila.desfase;
+    const desfaseOriginal = fila.desfase - entrada;
+    let nuevo = desfaseOriginal;
     const alMoverMouse = (e: MouseEvent) => {
       const dx = e.clientX - inicioX;
       if (!movido && Math.abs(dx) < UMBRAL_ARRASTRE) return;
       movido = true;
       // Se redondea a milisegundos: es lo que se guarda.
-      nuevo = Math.round((fila.desfase + dx * segundosPorPixel) * 1000) / 1000;
+      nuevo = Math.round((desfaseOriginal + dx * segundosPorPixel) * 1000) / 1000;
       setArrastre({ clave: fila.clave, desfase: nuevo });
     };
     const alSoltar = (e: MouseEvent) => {
@@ -174,6 +204,13 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
       {franja(ancho)}
       {franjaGuia(ancho)}
       <canvas ref={canvas} className="block" style={{ height: filas.length * altoFila }} />
+      {entrada > 0 && duracion > 0 && (
+        <div
+          title="Compases antes de la música"
+          className="pointer-events-none absolute inset-y-0 left-0 border-r border-accent/40 bg-accent/10"
+          style={{ width: `${(entrada / duracion) * 100}%` }}
+        />
+      )}
       <div ref={sombra} className="pointer-events-none absolute top-0 left-0 h-full bg-ink-0/35" style={{ width: 0 }} />
       {rejilla && duracion > 0 && ancho > 0 && (
         <MarcadorInicio
@@ -184,10 +221,14 @@ export function LineaTiempo({ filas, altoFila, duracion, alSaltar, alMover, clic
       )}
       <div ref={cursor} className="pointer-events-none absolute top-0 left-0 h-full w-0.5 bg-fg will-change-transform">
         <div className="absolute -top-px -left-[5px] border-x-[6px] border-t-[7px] border-x-transparent border-t-fg" />
+        <div
+          title="Arrastra para mover el cursor de reproducción"
+          className="pointer-events-auto absolute top-0 -left-1.5 h-4 w-3 cursor-ew-resize"
+        />
       </div>
       {(arrastre || inicioArrastre !== null) && (
         <div className="pointer-events-none absolute top-1 right-2 rounded-md bg-accent px-2 py-0.5 font-mono text-[12px] font-semibold text-accent-ink">
-          {arrastre ? formatoDesfase(arrastre.desfase) : `1 en ${formatoTiempo(inicioArrastre ?? 0)}`}
+          {arrastre ? formatoDesfase(arrastre.desfase) : `1 en ${formatoTiempo((inicioArrastre ?? 0) + entrada)}`}
         </div>
       )}
     </div>

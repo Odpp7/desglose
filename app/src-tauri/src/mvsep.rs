@@ -23,10 +23,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use reqwest::blocking::Client;
+use reqwest::StatusCode;
+use reqwest::blocking::{Client, Response};
 use reqwest::blocking::multipart::Form;
+use reqwest::header::HeaderMap;
 use serde::Serialize;
 use serde_json::Value;
+
+use crate::servicios;
 
 const SITIO: &str = "https://mvsep.com/api";
 const FLAC_16_BITS: &str = "2"; // el de 24 bits es solo para usuarios de pago
@@ -72,7 +76,7 @@ impl Cliente {
             // Subir o bajar una canción con internet lento puede tardar varios minutos.
             .timeout(Duration::from_secs(15 * 60))
             .build()
-            .map_err(|e| format!("No se pudo preparar la conexión: {e}"))?;
+            .map_err(|_| "No se pudo conectar con MVSep. Reintenta más tarde.")?;
         Ok(Self {
             http,
             clave,
@@ -159,9 +163,9 @@ impl Cliente {
                 if error == CANCELADA {
                     self.cancelar_en_mvsep(&hash);
                 }
-                // Si MVSep ya no conoce ese trabajo, falló o se canceló, el próximo intento
-                // crea uno nuevo. Si fue un corte de internet, el código se conserva.
-                if !error.starts_with(SIN_CONEXION) {
+                // Un fallo temporal conserva el trabajo. Si falló definitivamente
+                // o se canceló, el próximo intento crea uno nuevo.
+                if !conservar_trabajo(&error) {
                     let _ = fs::remove_file(&archivo_codigo);
                 }
                 return Err(error);
@@ -262,21 +266,11 @@ impl Cliente {
             .send()
             .map_err(|e| self.error_de_red(e))?;
         let codigo = respuesta.status();
-        let cuerpo: Value = respuesta.json().map_err(|e| self.error_de_red(e))?;
+        let headers = respuesta.headers().clone();
+        let cuerpo = self.leer_respuesta(respuesta)?;
 
         if cuerpo["success"].as_bool() != Some(true) {
-            let detalle = cuerpo["data"]["message"]
-                .as_str()
-                .map(str::to_string)
-                .unwrap_or_else(|| cuerpo.to_string());
-            let minusculas = detalle.to_lowercase();
-            if codigo.as_u16() == 401 || minusculas.contains("token") {
-                return Err("MVSep no aceptó la clave. Revísala en Ajustes.".into());
-            }
-            if minusculas.contains("concurrent") || minusculas.contains("already") {
-                return Err(format!("{OCUPADO} Espera a que termine y reintenta."));
-            }
-            return Err(self.ocultar_clave(format!("MVSep rechazó el trabajo: {detalle}")));
+            return Err(error_mvsep(codigo, &cuerpo, &headers));
         }
         cuerpo["data"]["hash"]
             .as_str()
@@ -297,15 +291,16 @@ impl Cliente {
                     cuerpo
                 }
                 // Un corte corto de internet no debe tirar una espera de una hora.
-                Err(error) => {
+                Err(error) if error.starts_with(SIN_CONEXION) || error.starts_with(NO_DISPONIBLE) => {
                     fallos += 1;
                     if fallos > FALLOS_TOLERADOS {
                         return Err(error);
                     }
-                    avisar("Sin conexión, reintentando…".into());
+                    avisar(format!("{error} Reintentando…"));
                     self.dormir()?;
                     continue;
                 }
+                Err(error) => return Err(error),
             };
 
             let datos = &cuerpo["data"];
@@ -316,16 +311,17 @@ impl Cliente {
                         .cloned()
                         .ok_or_else(|| "MVSep terminó pero no devolvió archivos".into());
                 }
-                "failed" | "not_found" => {
-                    let motivo = datos["message"].as_str().unwrap_or("sin detalle");
-                    return Err(format!("MVSep no pudo separar la canción: {motivo}"));
-                }
+                "failed" => return Err(error_mvsep(StatusCode::OK, &cuerpo, &HeaderMap::new())),
+                "not_found" => return Err("El trabajo anterior venció en MVSep. Reintenta para empezar uno nuevo.".into()),
                 "waiting" => avisar(self.texto_fila(datos)),
+                _ if cuerpo["success"].as_bool() == Some(false) => {
+                    return Err(error_mvsep(StatusCode::OK, &cuerpo, &HeaderMap::new()));
+                }
                 _ => avisar("MVSep está separando".into()),
             }
             self.dormir()?;
         }
-        Err("MVSep tardó más de 4 horas. Reintenta más tarde: se retoma el mismo trabajo.".into())
+        Err(format!("{ESPERA_AGOTADA} Reintenta más tarde para retomar el mismo trabajo."))
     }
 
     /// "En fila en MVSep: 120 de 403 · faltan unos 25 min"
@@ -364,8 +360,10 @@ impl Cliente {
             .http
             .get(url)
             .send()
-            .and_then(|r| r.error_for_status())
             .map_err(|e| self.error_de_red(e))?;
+        if !respuesta.status().is_success() {
+            return Err("MVSep terminó, pero la descarga de las pistas no está disponible. Reintenta más tarde.".into());
+        }
         let mut destino = File::create(carpeta.join(nombre))
             .map_err(|e| format!("No se pudo guardar una pista: {e}"))?;
         respuesta
@@ -375,12 +373,21 @@ impl Cliente {
     }
 
     fn pedir_json(&self, url: &str) -> Result<Value, String> {
-        self.http
+        let respuesta = self.http
             .get(url)
             .timeout(Duration::from_secs(60))
             .send()
-            .and_then(|r| r.json())
-            .map_err(|e| self.error_de_red(e))
+            .map_err(|e| self.error_de_red(e))?;
+        self.leer_respuesta(respuesta)
+    }
+
+    fn leer_respuesta(&self, respuesta: Response) -> Result<Value, String> {
+        let codigo = respuesta.status();
+        if !codigo.is_success() {
+            let headers = respuesta.headers().clone();
+            return Err(error_mvsep(codigo, &servicios::leer_error(respuesta), &headers));
+        }
+        respuesta.json().map_err(|e| self.error_de_red(e))
     }
 
     /// Traduce los errores de internet a algo que el encargado entienda.
@@ -388,17 +395,47 @@ impl Cliente {
         if error.is_connect() || error.is_timeout() {
             return format!("{SIN_CONEXION} Revisa el internet y reintenta.");
         }
-        self.ocultar_clave(format!("Error al hablar con MVSep: {error}"))
-    }
-
-    /// Nunca mostrar la clave en un mensaje de error.
-    fn ocultar_clave(&self, texto: String) -> String {
-        texto.replace(&self.clave, "***")
+        format!("{NO_DISPONIBLE} Reintenta más tarde.")
     }
 }
 
 const SIN_CONEXION: &str = "No hay conexión con MVSep.";
 const OCUPADO: &str = "MVSep todavía tiene otro trabajo de esta cuenta en curso.";
+const CLAVE_INCORRECTA: &str = "MVSep no aceptó la clave.";
+const LIMITE: &str = "MVSep alcanzó el límite de uso de esta cuenta.";
+const MUCHAS_SOLICITUDES: &str = "MVSep está recibiendo demasiadas solicitudes.";
+const NO_DISPONIBLE: &str = "MVSep no está disponible ahora.";
+const ESPERA_AGOTADA: &str = "MVSep tardó más de 4 horas.";
+
+fn conservar_trabajo(error: &str) -> bool {
+    [SIN_CONEXION, CLAVE_INCORRECTA, LIMITE, MUCHAS_SOLICITUDES, NO_DISPONIBLE, ESPERA_AGOTADA]
+        .iter().any(|inicio| error.starts_with(inicio))
+}
+
+fn error_mvsep(codigo: StatusCode, cuerpo: &Value, headers: &HeaderMap) -> String {
+    let detalle = servicios::detalle(cuerpo).to_lowercase();
+    if codigo == StatusCode::UNAUTHORIZED || ["invalid token", "invalid api token", "invalid api key", "api token is invalid", "token is invalid"]
+        .iter().any(|frase| detalle.contains(frase))
+    {
+        return format!("{CLAVE_INCORRECTA} Revísala en Ajustes.");
+    }
+    if codigo == StatusCode::PAYMENT_REQUIRED || servicios::limite_confirmado(cuerpo) {
+        return format!("{LIMITE}{} Las pistas que ya tienes siguen disponibles.", servicios::aviso_reinicio(cuerpo, headers));
+    }
+    if detalle.contains("concurrent") || (detalle.contains("already")
+        && ["job", "task", "separation", "processing"].iter().any(|palabra| detalle.contains(palabra)))
+    {
+        return format!("{OCUPADO} Espera a que termine y reintenta.");
+    }
+    match codigo {
+        StatusCode::TOO_MANY_REQUESTS => format!("{MUCHAS_SOLICITUDES}{} Reintenta más tarde.", servicios::aviso_reinicio(cuerpo, headers)),
+        StatusCode::FORBIDDEN => format!("{CLAVE_INCORRECTA} Revisa la clave y el acceso de tu cuenta en Ajustes."),
+        StatusCode::NOT_FOUND => "MVSep no encontró el trabajo solicitado. Puedes reintentar.".into(),
+        StatusCode::PAYLOAD_TOO_LARGE => "La canción supera el tamaño que permite MVSep. Prueba con un archivo más liviano.".into(),
+        s if s.is_server_error() => format!("{NO_DISPONIBLE} Reintenta más tarde."),
+        _ => "MVSep no pudo completar la separación. Reintenta más tarde.".into(),
+    }
+}
 
 /// ¿Hay en la carpeta un archivo cuyo nombre termina en `_<pista>`?
 fn tiene_pista(carpeta: &Path, pista: &str) -> bool {
@@ -425,6 +462,23 @@ fn campo<'a>(json: &'a Value, nombre: &str) -> Option<&'a Value> {
 #[cfg(test)]
 mod pruebas {
     use super::*;
+
+    #[test]
+    fn limite_con_fecha_conserva_el_trabajo_y_no_muestra_la_respuesta_interna() {
+        let cuerpo = serde_json::json!({
+            "data": { "code": "quota_exceeded", "message": "interno", "reset_at": "2026-11-15T00:00:00Z" }
+        });
+        let mensaje = error_mvsep(StatusCode::OK, &cuerpo, &HeaderMap::new());
+        assert!(mensaje.contains(LIMITE));
+        assert!(mensaje.contains("15/11/2026"));
+        assert!(!mensaje.contains("interno"));
+        assert!(conservar_trabajo(&mensaje));
+
+        let ocupado = serde_json::json!({"message":"Concurrent tasks limit"});
+        assert!(error_mvsep(StatusCode::TOO_MANY_REQUESTS, &ocupado, &HeaderMap::new()).starts_with(OCUPADO));
+        let fallo = error_mvsep(StatusCode::OK, &Value::Null, &HeaderMap::new());
+        assert!(!conservar_trabajo(&fallo));
+    }
 
     #[test]
     fn cancelar_corta_la_espera_enseguida() {

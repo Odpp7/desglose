@@ -143,5 +143,11 @@ pub fn migraciones() -> Vec<Migration> {
             ",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "compases antes de la música",
+            sql: "ALTER TABLE canciones ADD COLUMN entrada_compases INTEGER NOT NULL DEFAULT 0 CHECK (entrada_compases BETWEEN 0 AND 4);",
+            kind: MigrationKind::Up,
+        },
     ]
 }

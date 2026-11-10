@@ -18,6 +18,8 @@ export type Click = {
   inicio: number;
   /** Compases de entrada que suenan antes del primer tiempo. */
   conteo: number;
+  /** Compases de espacio que se añaden antes del audio original. */
+  entradaCompases: number;
   /** 1 = volumen normal. */
   volumen: number;
   activo: boolean;
@@ -46,6 +48,20 @@ export function segundosPorCompas(click: Click) {
   return click.bpm ? (60 / click.bpm) * click.compas : 0;
 }
 
+/** El motor recibe desfases en milisegundos; todas las franjas usan ese mismo retraso. */
+export function entradaEnMs(click: Click) {
+  return Math.ceil(click.entradaCompases * segundosPorCompas(click) * 1000);
+}
+
+/** El primer golpe y el conteo en el reloj que incluye la entrada. */
+export function clickEnLinea(click: Click, entrada: number): Click {
+  if (entrada <= 0 || !click.bpm) return click;
+  const inicio = click.inicio + entrada;
+  // El primer pulso que cabe en la línea puede estar a mitad de un compás.
+  const conteo = Math.max(click.conteo, Math.ceil(inicio / segundosPorCompas(click)));
+  return { ...click, inicio, conteo };
+}
+
 const ESPERA_GUARDAR_MS = 400;
 
 function desdeCancion(c: Cancion): Click {
@@ -54,6 +70,7 @@ function desdeCancion(c: Cancion): Click {
     compas: c.compas,
     inicio: c.inicio_click,
     conteo: c.conteo,
+    entradaCompases: c.entrada_compases,
     volumen: c.click_volumen,
     activo: !!c.click_activo,
     guiaActiva: !!c.guia_activa,
@@ -89,6 +106,7 @@ export function useClick(cancion: Cancion | null | undefined) {
         compas: nuevo.compas,
         inicio_click: nuevo.inicio,
         conteo: nuevo.conteo,
+        entrada_compases: nuevo.entradaCompases,
         click_volumen: nuevo.volumen,
         click_activo: nuevo.activo ? 1 : 0,
         guia_activa: nuevo.guiaActiva ? 1 : 0,

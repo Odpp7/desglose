@@ -20,13 +20,16 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use reqwest::blocking::Client;
+use reqwest::blocking::{Client, Response};
+use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
 use crate::ajustes;
 use crate::biblioteca;
+use crate::servicios;
 
 /// Direcciones web, tal como las da `modal deploy`.
 const INICIAR: &str = "https://odpp7--desglose-secciones-iniciar.us-east.modal.run";
@@ -75,7 +78,7 @@ struct Estado {
 pub async fn proponer_secciones(app: AppHandle, id: i64, archivo: String) -> Result<Vec<SeccionIa>, String> {
     tauri::async_runtime::spawn_blocking(move || proponer(&app, id, &archivo))
         .await
-        .map_err(|e| format!("El análisis se detuvo: {e}"))?
+        .map_err(|_| "El análisis se detuvo. Puedes reintentar o marcar las secciones a mano.".to_string())?
 }
 
 /// ¿Quedó un trabajo a medias (se cerró la app mientras analizaba)?
@@ -95,7 +98,7 @@ fn proponer(app: &AppHandle, id: i64, archivo: &str) -> Result<Vec<SeccionIa>, S
         // Subir una canción con internet lento puede tardar unos minutos.
         .timeout(Duration::from_secs(5 * 60))
         .build()
-        .map_err(|e| format!("No se pudo preparar la conexión: {e}"))?;
+        .map_err(|_| "No se pudo conectar con Modal. Puedes marcar las secciones a mano.")?;
     let pendiente = ruta_pendiente(app, id)?;
     let avisar = |etapa: &str, segundos: u64| {
         let _ = app.emit(
@@ -104,10 +107,12 @@ fn proponer(app: &AppHandle, id: i64, archivo: &str) -> Result<Vec<SeccionIa>, S
         );
     };
     let error_de_red = |e: reqwest::Error| {
-        if e.is_connect() || e.is_timeout() {
-            "No hay conexión con Modal. Revisa el internet, o marca las secciones a mano.".to_string()
+        if e.is_timeout() {
+            "Modal no respondió a tiempo. Reintenta o marca las secciones a mano.".to_string()
+        } else if e.is_connect() {
+            "No hay conexión con Modal. Revisa internet o marca las secciones a mano.".to_string()
         } else {
-            format!("Error al hablar con Modal: {}", e.to_string().replace(&clave, "***"))
+            "No se pudo completar la comunicación con Modal. Reintenta o marca las secciones a mano.".to_string()
         }
     };
 
@@ -128,10 +133,9 @@ fn proponer(app: &AppHandle, id: i64, archivo: &str) -> Result<Vec<SeccionIa>, S
                 .body(audio)
                 .send()
                 .map_err(error_de_red)?;
-            revisar(respuesta.status())?;
-            let iniciado: Iniciado = respuesta
+            let iniciado: Iniciado = revisar(respuesta)?
                 .json()
-                .map_err(|e| format!("Modal respondió algo que no se entiende: {e}"))?;
+                .map_err(|_| "Modal no confirmó el inicio del análisis. Puedes marcar las secciones a mano.")?;
             fs::write(&pendiente, &iniciado.id).map_err(|e| format!("No se pudo anotar el trabajo: {e}"))?;
             iniciado.id
         }
@@ -165,19 +169,19 @@ fn proponer(app: &AppHandle, id: i64, archivo: &str) -> Result<Vec<SeccionIa>, S
             let _ = fs::remove_file(&pendiente);
             return Err("El análisis anterior ya venció. Pulsa \"Proponer con IA\" otra vez.".into());
         }
-        revisar(respuesta.status())?;
-        let estado: Estado = respuesta
+        let estado: Estado = revisar(respuesta)?
             .json()
-            .map_err(|e| format!("Modal respondió algo que no se entiende: {e}"))?;
+            .map_err(|_| "Modal no pudo informar del avance. Reintenta o marca las secciones a mano.")?;
 
         match estado.etapa.as_str() {
             "listo" => {
                 let _ = fs::remove_file(&pendiente);
-                return estado.secciones.ok_or_else(|| "Modal no mandó las secciones.".into());
+                return estado.secciones.ok_or_else(|| "La IA terminó sin devolver secciones. Puedes marcarlas a mano.".into());
             }
             "error" => {
                 let _ = fs::remove_file(&pendiente);
-                return Err(estado.mensaje.unwrap_or_else(|| "La IA falló.".into()));
+                let cuerpo = json!({ "message": estado.mensaje });
+                return Err(error_modal(StatusCode::INTERNAL_SERVER_ERROR, &cuerpo, &HeaderMap::new()));
             }
             etapa => avisar(etapa, estado.segundos),
         }
@@ -186,15 +190,50 @@ fn proponer(app: &AppHandle, id: i64, archivo: &str) -> Result<Vec<SeccionIa>, S
 }
 
 /// Traduce las respuestas de Modal que no son "todo bien".
-fn revisar(estado: StatusCode) -> Result<(), String> {
-    match estado {
-        s if s.is_success() => Ok(()),
-        StatusCode::UNAUTHORIZED => Err("La clave de Modal no es correcta. Revísala en Ajustes.".into()),
-        // Sin crédito, Modal no deja correr la función.
-        StatusCode::PAYMENT_REQUIRED | StatusCode::TOO_MANY_REQUESTS => Err(
-            "Modal no aceptó el trabajo: puede que se acabó el crédito del mes. Marca las secciones a mano.".into(),
-        ),
-        StatusCode::NOT_FOUND => Err("La función de Modal no está publicada.".into()),
-        otro => Err(format!("Modal falló ({otro}). Puedes reintentar o marcar las secciones a mano.")),
+fn revisar(respuesta: Response) -> Result<Response, String> {
+    let estado = respuesta.status();
+    if estado.is_success() {
+        return Ok(respuesta);
+    }
+    let headers = respuesta.headers().clone();
+    Err(error_modal(estado, &servicios::leer_error(respuesta), &headers))
+}
+
+fn error_modal(estado: StatusCode, cuerpo: &Value, headers: &HeaderMap) -> String {
+    let (mensaje, limite) = if estado == StatusCode::PAYMENT_REQUIRED || servicios::limite_confirmado(cuerpo) {
+        ("Se agotó el crédito de Modal o se alcanzó su límite de uso.", true)
+    } else {
+        match estado {
+            StatusCode::UNAUTHORIZED => ("La clave de Modal no es correcta. Revísala en Ajustes.", false),
+            StatusCode::FORBIDDEN => ("Modal denegó el acceso. Revisa la clave en Ajustes.", false),
+            StatusCode::TOO_MANY_REQUESTS => ("Modal está recibiendo demasiadas solicitudes. Intenta más tarde.", true),
+            StatusCode::NOT_FOUND => ("El análisis con IA no está disponible ahora.", false),
+            StatusCode::PAYLOAD_TOO_LARGE => ("La canción es demasiado grande para analizarla con Modal.", false),
+            _ => ("La IA no pudo completar el análisis. Puedes reintentar más tarde.", false),
+        }
+    };
+    let aviso = if limite { servicios::aviso_reinicio(cuerpo, headers) } else { String::new() };
+    format!("{mensaje}{aviso} Puedes marcar las secciones a mano.")
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn distingue_credito_de_saturacion_y_ofrece_marcar_a_mano() {
+        let mut headers = HeaderMap::new();
+        headers.insert("retry-after", "Wed, 11 Nov 2026 00:00:00 GMT".parse().unwrap());
+        let limite = error_modal(StatusCode::PAYMENT_REQUIRED, &Value::Null, &headers);
+        assert!(limite.contains("crédito"));
+        assert!(limite.contains("11/11/2026"));
+        assert!(limite.contains("marcar las secciones a mano"));
+
+        let temporal = error_modal(StatusCode::TOO_MANY_REQUESTS, &Value::Null, &HeaderMap::new());
+        assert!(temporal.contains("demasiadas solicitudes"));
+        assert!(!temporal.contains("crédito"));
+        let interno = error_modal(StatusCode::INTERNAL_SERVER_ERROR, &json!({"detail":"traceback privado"}), &headers);
+        assert!(!interno.contains("traceback"));
+        assert!(!interno.contains("11/11/2026"));
     }
 }

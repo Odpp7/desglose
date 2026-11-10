@@ -8,7 +8,8 @@
 //   - El aviso de cada sección va 1 compás antes: el nombre en el tiempo 1 y el
 //     conteo en los demás ("Coro, 2, 3, 4"). Con 2 compases, el nombre en el
 //     primero y "1, 2, 3, 4" en el segundo.
-//   - Automático: 1 compás, o 2 si el compás dura menos de 1,6 s (canciones rápidas).
+//   - La primera sección se anuncia en el último compás de entrada. Las demás
+//     usan 1 compás, o 2 si el compás dura menos de 1,6 s (canciones rápidas).
 //   - La primera sección se anuncia en el compás de conteo, antes del primer tiempo.
 //   - Si el nombre es largo, se saltan los números que lo pisarían ("Instrumental… 3, 4").
 //   - 3/4 cuenta "Coro, 2, 3"; 6/8 cuenta en 2 ("Coro, 2"); 12/8 en 4.
@@ -78,6 +79,7 @@ export function calcularGuia(
   click: Click,
   duracion: number,
   frases: Frases,
+  entrada = 0,
 ): { eventos: Evento[]; marcas: Marca[] } {
   const eventos: Evento[] = [];
   const marcas: Marca[] = [];
@@ -91,12 +93,20 @@ export function calcularGuia(
   const etiquetas = nombres(secciones);
 
   secciones.forEach((seccion, i) => {
-    const fin = secciones[i + 1]?.inicio ?? duracion;
-    // La primera se anuncia antes del primer tiempo del click, no en el segundo 0.
-    const empieza = i === 0 ? Math.max(seccion.inicio, click.inicio) : seccion.inicio;
+    const fin = (secciones[i + 1]?.inicio ?? duracion) + entrada;
+    // El inicio de Intro se puede mover. El aviso se mantiene sobre el click,
+    // incluso si la sección se ajustó libremente con Alt. La tolerancia cubre
+    // el redondeo a milisegundos del editor de secciones.
+    const primerCompas = Math.max(0, Math.floor((seccion.inicio - click.inicio + 0.001) / compas));
+    const empieza = entrada + (i === 0 ? click.inicio + primerCompas * compas : seccion.inicio);
     if (fin - empieza < compas) return; // menos de un compás: sin aviso
 
-    const compases = seccion.anticipacion ?? porDefecto;
+    const pedidos = seccion.anticipacion ?? click.anticipacion ?? (i === 0 ? 1 : porDefecto);
+    // Con entrada, la primera frase debe caber. Si solo hay un compás,
+    // una canción rápida también puede anunciar «Intro» en ese compás.
+    const compases = i === 0 && entrada > 0
+      ? Math.min(pedidos, Math.max(1, Math.floor((empieza + 1e-9) / compas)))
+      : pedidos;
     const inicio = empieza - compases * compas;
     const frase = fraseDeSeccion(seccion, etiquetas[i], frases);
     const apagada = !!seccion.sin_aviso;
@@ -114,22 +124,25 @@ export function calcularGuia(
       if (frases.has(String(n))) dichos.push([segundo, String(n)]);
     }
 
-    const validos = dichos.filter(([s]) => s >= 0);
+    const validos: Evento[] = dichos.filter(([s]) => s >= -1e-9).map(([s, f]) => [Math.max(0, s), f]);
     if (!apagada) eventos.push(...validos);
     marcas.push({
       clase: "seccion",
       indice: i,
       inicio: Math.max(0, inicio),
       fin: empieza,
-      texto: textoDe(validos, frase),
+      texto: textoDe(validos, validos.some(([, f]) => f === frase) ? frase : null),
       compases,
       apagada,
     });
   });
 
   for (const aviso of libres) {
-    if (frases.has(aviso.frase)) eventos.push([aviso.segundo, aviso.frase]);
-    marcas.push({ clase: "libre", aviso });
+    const segundo = aviso.segundo + entrada;
+    if (segundo < -0.0005 || segundo >= duracion + entrada) continue;
+    const enLinea = { ...aviso, segundo: Math.max(0, segundo) };
+    if (frases.has(aviso.frase)) eventos.push([enLinea.segundo, aviso.frase]);
+    marcas.push({ clase: "libre", aviso: enLinea });
   }
 
   eventos.sort((a, b) => a[0] - b[0]);

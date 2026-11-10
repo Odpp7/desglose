@@ -2,7 +2,7 @@
 //
 // Van una tras otra y cubren toda la canción, como las regiones de REAPER: cada
 // una empieza en `inicio` y termina donde empieza la siguiente (la última, al
-// final de la canción). La primera siempre empieza en 0.
+// final de la canción). La primera se crea en 0 y se puede mover sobre el audio.
 //
 // Solo se guarda el TIPO ("Verso"); el número se calcula al mostrarla, en orden:
 // si hay dos versos son "Verso 1" y "Verso 2"; si hay un solo puente, "Puente".
@@ -83,11 +83,12 @@ export function dividir(secciones: Seccion[], segundos: number, duracion: number
   return [...secciones.slice(0, i + 1), nueva, ...secciones.slice(i + 1)];
 }
 
-/** Mueve el borde donde empieza la sección `indice` (no la primera: esa empieza en 0). */
+/** Mueve el borde donde empieza la sección `indice`. */
 export function moverBorde(secciones: Seccion[], indice: number, segundos: number, duracion: number): Seccion[] {
-  if (indice <= 0 || indice >= secciones.length) return secciones;
-  const minimo = secciones[indice - 1].inicio + MINIMO_SEGUNDOS;
+  if (indice < 0 || indice >= secciones.length) return secciones;
+  const minimo = indice === 0 ? 0 : secciones[indice - 1].inicio + MINIMO_SEGUNDOS;
   const maximo = fin(secciones, indice, duracion) - MINIMO_SEGUNDOS;
+  if (maximo < minimo) return secciones;
   const inicio = redondear(Math.min(maximo, Math.max(minimo, segundos)));
   return secciones.map((s, i) => (i === indice ? { ...s, inicio, origen: "manual" } : s));
 }

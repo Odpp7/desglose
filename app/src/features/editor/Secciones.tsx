@@ -30,6 +30,8 @@ type Props = {
   /** `undefined` mientras se leen de la base. */
   secciones: Seccion[] | undefined;
   duracion: number;
+  /** Espacio al inicio de la línea, fuera del audio y las secciones guardadas. */
+  entrada: number;
   ancho: number;
   alCambiar: (nuevas: Seccion[]) => void;
   alSaltar: (segundos: number) => void;
@@ -54,7 +56,7 @@ export type AvanceIa = { etapa: string; segundos: number };
 const SEGUNDOS_ANALISIS = 180;
 
 export function FranjaSecciones(props: Props) {
-  const { secciones, duracion, ancho, alCambiar, alSaltar, ajustar, alMarcarAMano } = props;
+  const { secciones, duracion, entrada, ancho, alCambiar, alSaltar, ajustar, alMarcarAMano } = props;
   // Mientras se arrastra un borde: cómo quedarían (solo para dibujarlas).
   const [vistaPrevia, setVistaPrevia] = useState<Seccion[] | null>(null);
   const [menu, setMenu] = useState<{ indice: number; top: number; left: number } | null>(null);
@@ -91,23 +93,19 @@ export function FranjaSecciones(props: Props) {
             {props.errorIa ? "Reintentar con IA" : "Proponer con IA"}
           </button>
         )}
-        {props.errorIa && !props.proponiendo && (
-          <span title={props.errorIa} className="truncate text-[#ffb3bd]">
-            {props.errorIa}
-          </span>
-        )}
       </div>
     );
   }
 
   const lista = vistaPrevia ?? secciones;
   const etiquetas = nombres(lista);
-  const x = (s: number) => (s / duracion) * ancho;
+  const duracionTotal = duracion + entrada;
+  const x = (s: number) => ((s + entrada) / duracionTotal) * ancho;
 
   function arrastrarBorde(evento: React.MouseEvent, indice: number) {
     evento.stopPropagation();
     evento.preventDefault();
-    const segundosPorPixel = duracion / ancho;
+    const segundosPorPixel = duracionTotal / ancho;
     const inicioX = evento.clientX;
     const original = secciones![indice].inicio;
     let resultado: Seccion[] | null = null;
@@ -150,18 +148,15 @@ export function FranjaSecciones(props: Props) {
           </div>
         );
       })}
-      {/* Los bordes que se arrastran (el de la primera no: empieza en 0). */}
-      {lista.map((s, i) =>
-        i === 0 ? null : (
+      {lista.map((s, i) => (
           <div
             key={`borde-${i}`}
             onMouseDown={(e) => arrastrarBorde(e, i)}
             title="Arrastra para mover el borde (Alt: sin pegarse al compás)"
-            style={{ left: x(s.inicio) - 4 }}
+            style={{ left: Math.max(0, x(s.inicio) - 4) }}
             className="absolute top-0 bottom-0 z-10 w-[9px] cursor-ew-resize hover:bg-fg/20"
           />
-        ),
-      )}
+      ))}
       {menu && secciones[menu.indice] && (
         <MenuSeccion
           posicion={{ top: menu.top, left: Math.min(menu.left, window.innerWidth - 300) }}

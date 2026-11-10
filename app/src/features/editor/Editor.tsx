@@ -4,7 +4,7 @@ import { Confirmar } from "../../components/Confirmar";
 import { IconoMas } from "../../components/icons";
 import { FORMATOS, borrarPistaPropia, copiarPistaPropia, sinExtension } from "../../lib/archivos";
 import { avisarCambio } from "../../lib/cambios";
-import { segundosPorCompas, type Click } from "../../lib/click";
+import { clickEnLinea, entradaEnMs, segundosPorCompas, type Click } from "../../lib/click";
 import * as db from "../../lib/db";
 import type { CambioPista, Cancion, Pista } from "../../lib/db";
 import { escucharEstado, motor } from "../../lib/engine";
@@ -59,6 +59,11 @@ const ESPERA_GUARDAR_MS = 400;
 
 export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTenerSecciones }: Props) {
   const id = cancion.id;
+  const entradaMs = entradaEnMs(click);
+  const entrada = entradaMs / 1000;
+  const duracion = cancion.duracion_ms / 1000;
+  const duracionTotal = duracion + entrada;
+  const clickLinea = clickEnLinea(click, entrada);
   // Copia local para que el fader responda al instante; se guarda en SQLite aparte.
   const [pistas, setPistas] = useState<Pista[]>(desdeBase);
   const [ondas, setOndas] = useState<Map<string, Uint8Array>>(new Map());
@@ -102,22 +107,24 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
 
   // Qué se carga en el motor: archivos y desfases. Si cambia, se recarga.
   const carga = useMemo(
-    () => desdeBase.map((p) => ({ archivo: p.archivo, desfaseMs: p.desfase_ms })),
-    [desdeBase],
+    () => desdeBase.map((p) => ({ archivo: p.archivo, desfaseMs: p.desfase_ms + entradaMs })),
+    [desdeBase, entradaMs],
   );
   const claveCarga = JSON.stringify(carga);
-  const cargadaAntes = useRef(false);
-  // Sube cada vez que el motor termina de cargar: el click se le vuelve a pasar.
-  const [cargas, setCargas] = useState(0);
+  const entradaCargada = useRef<number | null>(null);
+  const [claveCargada, setClaveCargada] = useState<string | null>(null);
+  const listaParaSonar = claveCargada === claveCarga;
 
   useEffect(() => {
     let vigente = true;
     setError("");
+    setClaveCargada(null);
     (async () => {
-      const volver = cargadaAntes.current ? { ...ultimo.current } : null;
+      // Si cambia la entrada, vuelve a 0 para poder escucharla completa.
+      const volver = entradaCargada.current === entradaMs ? { ...ultimo.current } : null;
       const yaEstaba = await motor.cargarCancion(id, carga);
       if (!vigente) return;
-      cargadaAntes.current = true;
+      entradaCargada.current = entradaMs;
       // El motor y la pantalla deben estar de acuerdo en la velocidad y el tono.
       await motor.estudio(estudioActual.current.velocidad, estudioActual.current.semitonos);
 
@@ -128,13 +135,14 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
           await motor.mute(i, !!p.mute);
           await motor.solo(i, !!p.solo);
         }
-        if (volver && volver.posicion > 0) {
+        if (vigente && volver && volver.posicion > 0) {
           await motor.buscar(volver.posicion);
           if (volver.reproduciendo) await motor.play();
         }
       }
 
-      setCargas((n) => n + 1);
+      if (!vigente) return;
+      setClaveCargada(claveCarga);
 
       // Las ondas que falten, una por una: la primera vez cada una tarda un momento.
       for (const p of desdeBase) {
@@ -154,13 +162,13 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
   // El click va al motor cada vez que cambia, o cuando el motor recargó las pistas
   // (al recargar, el motor vuelve a su click de fábrica). Sin BPM, queda callado.
   useEffect(() => {
-    if (cargas === 0) return;
+    if (!listaParaSonar) return;
     const indice = desdeBase.length;
     const fallo = (e: unknown) => setError(String(e));
-    motor.click(click.bpm ?? 120, click.compas, click.inicio, click.conteo).catch(fallo);
+    motor.click(clickLinea.bpm ?? 120, clickLinea.compas, clickLinea.inicio, clickLinea.conteo).catch(fallo);
     motor.volumen(indice, click.volumen).catch(fallo);
     motor.mute(indice, !(click.activo && click.bpm !== null)).catch(fallo);
-  }, [click, cargas]);
+  }, [click, entrada, listaParaSonar]);
 
   // Guardar el volumen en SQLite se espera un momento (el fader manda muchos cambios).
   const esperas = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -225,10 +233,11 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
 
   function cortarAqui() {
     const actuales = secciones.secciones;
-    if (!actuales) return;
+    const segundo = ultimo.current.posicion - entrada;
+    if (!actuales || !listaParaSonar || segundo < 0) return;
     // Sin secciones, cortar empieza el modo a mano (una sola sección) y corta ahí.
     const base = actuales.length > 0 ? actuales : empezar();
-    secciones.cambiar(dividir(base, ajustar(ultimo.current.posicion), cancion.duracion_ms / 1000));
+    secciones.cambiar(dividir(base, ajustar(segundo), duracion));
   }
 
   // Proponer con IA. El trabajo sigue aunque se cierre el editor: al volver, si
@@ -294,21 +303,21 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
   }, [id]);
 
   const guia = useMemo(
-    () => calcularGuia(secciones.secciones ?? [], libres, click, cancion.duracion_ms / 1000, frases),
-    [secciones.secciones, libres, click, cancion.duracion_ms, frases],
+    () => calcularGuia(secciones.secciones ?? [], libres, click, duracion, frases, entrada),
+    [secciones.secciones, libres, click, duracion, frases, entrada],
   );
   // Al motor solo cuando cambia de verdad lo que suena (no por cada dibujo).
   const claveGuia = JSON.stringify(guia.eventos);
   useEffect(() => {
-    if (cargas === 0) return;
+    if (!listaParaSonar) return;
     motor.guia(guia.eventos).catch((e) => setError(String(e)));
-  }, [claveGuia, cargas, frases]);
+  }, [claveGuia, listaParaSonar, frases]);
   useEffect(() => {
-    if (cargas === 0) return;
+    if (!listaParaSonar) return;
     const indice = desdeBase.length + 1; // la guía va después del click
     motor.volumen(indice, click.guiaVolumen).catch((e) => setError(String(e)));
     motor.mute(indice, !(click.guiaActiva && click.bpm !== null)).catch((e) => setError(String(e)));
-  }, [click.guiaActiva, click.guiaVolumen, click.bpm, cargas]);
+  }, [click.guiaActiva, click.guiaVolumen, click.bpm, listaParaSonar]);
 
   function cambiarSeccionGuia(indice: number, cambio: Partial<Seccion>) {
     const actuales = secciones.secciones;
@@ -318,7 +327,8 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
 
   async function anadirAviso() {
     if (!click.bpm) return setError("Primero define el BPM: la voz guía cuenta sobre el click.");
-    const segundo = Math.round(alTiempo(ultimo.current.posicion, click) * 1000) / 1000;
+    if (!listaParaSonar) return;
+    const segundo = Math.round((alTiempo(ultimo.current.posicion, clickLinea) - entrada) * 1000) / 1000;
     try {
       const nuevoId = await db.crearAviso(id, segundo, "Todos");
       setLibres((antes) => [...antes, { id: nuevoId, segundo, frase: "Todos" }]);
@@ -382,10 +392,10 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
         color: datosPista(p).color,
         picos: ondas.get(p.archivo),
         apagada: !!p.mute || (haySolo && !p.solo),
-        desfase: p.desfase_ms / 1000,
+        desfase: p.desfase_ms / 1000 + entrada,
         movible: !!p.propia,
       })),
-    [visibles, ondas, haySolo],
+    [visibles, ondas, haySolo, entrada],
   );
 
   function alMover(clave: string, desfase: number) {
@@ -393,14 +403,20 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
     if (i >= 0) cambiar(i, pistas[i], { desfase_ms: Math.round(desfase * 1000) });
   }
 
-  const duracion = cancion.duracion_ms / 1000;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {error && (
         <p role="alert" className="m-0 flex border-b border-line bg-[#3a1d24] px-5 py-2 text-[#ffb3bd]">
           <span className="flex-1">{error}</span>
           <button aria-label="Cerrar aviso" onClick={() => setError("")} className="opacity-70 hover:opacity-100">
+            ✕
+          </button>
+        </p>
+      )}
+      {errorIa && !proponiendo && !haySecciones && (
+        <p role="alert" className="m-0 flex gap-3 border-b border-line bg-[#3a1d24] px-5 py-2 text-[#ffb3bd]">
+          <span className="min-w-0 flex-1">{errorIa}</span>
+          <button aria-label="Cerrar aviso de la IA" onClick={() => setErrorIa(null)} className="self-start opacity-70 hover:opacity-100">
             ✕
           </button>
         </p>
@@ -480,7 +496,8 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
           <LineaTiempo
             filas={filas}
             altoFila={altoFila}
-            duracion={duracion}
+            duracion={duracionTotal}
+            entrada={entrada}
             alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
             alMover={alMover}
             click={click.bpm !== null ? click : null}
@@ -489,9 +506,10 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
               <FranjaSecciones
                 secciones={secciones.secciones}
                 duracion={duracion}
+                entrada={entrada}
                 ancho={ancho}
                 alCambiar={secciones.cambiar}
-                alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
+                alSaltar={(s) => motor.buscar(s + entrada).catch((e) => setError(String(e)))}
                 ajustar={ajustar}
                 alMarcarAMano={() => secciones.cambiar(empezar())}
                 alProponer={() => esperarPropuesta(proponerConIa(id, cancion.archivo, ajustar))}
@@ -505,12 +523,14 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
               <FranjaGuia
                 marcas={guia.marcas}
                 secciones={secciones.secciones}
-                click={click}
-                duracion={duracion}
+                click={clickLinea}
+                duracion={duracionTotal}
                 ancho={ancho}
                 frases={[...frases.keys()]}
                 alCambiarSeccion={cambiarSeccionGuia}
-                alCambiarLibre={cambiarLibre}
+                alCambiarLibre={(aviso) => cambiarLibre({
+                  ...aviso, segundo: Math.round((aviso.segundo - entrada) * 1000) / 1000,
+                })}
                 alBorrarLibre={borrarLibre}
                 alSaltar={(s) => motor.buscar(s).catch((e) => setError(String(e)))}
               />
@@ -520,7 +540,7 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
       </div>
 
       <Transporte
-        duracion={duracion}
+        duracion={duracionTotal}
         estudio={estudio}
         tono={cancion.tono}
         click={click}

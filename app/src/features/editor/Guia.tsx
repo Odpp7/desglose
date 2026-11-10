@@ -70,8 +70,11 @@ export function FranjaGuia(props: Props) {
       movido = true;
       const libre = original + dx * segundosPorPixel;
       if (marca.clase === "seccion") {
-        // Se pega a compases enteros antes de la sección (de 1 a 4).
-        const compases = Math.min(4, Math.max(1, Math.round((marca.fin - libre) / compas)));
+        // Intro solo se puede adelantar hasta donde haya espacio para un compás completo.
+        const maximo = marca.indice === 0
+          ? Math.max(1, Math.min(4, Math.floor((marca.fin + 1e-9) / compas)))
+          : 4;
+        const compases = Math.min(maximo, Math.max(1, Math.round((marca.fin - libre) / compas)));
         destino = marca.fin - compases * compas;
       } else {
         destino = Math.min(duracion, alTiempo(libre, click));
@@ -105,7 +108,7 @@ export function FranjaGuia(props: Props) {
         const clave = claveDe(m);
         const movida = arrastre?.clave === clave ? arrastre.inicio : null;
         if (m.clase === "seccion") {
-          const inicio = movida ?? m.inicio;
+          const inicio = Math.max(0, movida ?? m.inicio);
           const color = colorDe(props.secciones?.[m.indice]?.tipo ?? "");
           return (
             <div

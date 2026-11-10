@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { COMPASES, nombreCompas, type Click } from "../../lib/click";
+import { COMPASES, entradaEnMs, nombreCompas, type Click } from "../../lib/click";
 import { escucharEstado, formatoTiempo } from "../../lib/engine";
 import { BPM_MAXIMO, BPM_MINIMO, agregarToque, bpmDeToques, limitarBpm } from "../../lib/tocarTempo";
 
@@ -74,6 +74,7 @@ function PanelClick({ posicion, click, alCambiar }: Props & { posicion: { top: n
   const [texto, setTexto] = useState(click.bpm ? formatoBpm(click.bpm) : "");
   // La posición de la canción, para "Aquí". Sin pasar por el estado de React.
   const posicionCancion = useRef(0);
+  const entrada = entradaEnMs(click) / 1000;
 
   useEffect(() => {
     const dejar = escucharEstado((e) => (posicionCancion.current = e.posicion));
@@ -173,8 +174,20 @@ function PanelClick({ posicion, click, alCambiar }: Props & { posicion: { top: n
         <span className="text-[12px] text-fg-3">compases antes del 1</span>
       </Fila>
 
+      <Fila titulo="Antes de la música">
+        {[0, 1, 2, 3, 4].map((n) => (
+          <Opcion key={n} elegida={click.entradaCompases === n} deshabilitada={!click.bpm} onClick={() => alCambiar({ entradaCompases: n })}>
+            {n}
+          </Opcion>
+        ))}
+        <span className="text-[12px] text-fg-3">compases</span>
+      </Fila>
+      <p className="m-0 -mt-1 text-[11.5px] text-fg-3">
+        {click.bpm ? "Deja espacio para oír el click y la guía antes de que entren las pistas." : "Define el BPM para añadir espacio antes de las pistas."}
+      </p>
+
       <Fila titulo="Primer tiempo">
-        <span className="w-[74px] font-mono text-[14px] font-semibold">{formatoTiempoFino(click.inicio)}</span>
+        <span className="w-[74px] font-mono text-[14px] font-semibold">{formatoTiempoFino(click.inicio + entrada)}</span>
         <Boton etiqueta="Antes (10 ms)" onClick={() => moverInicio(-PASO_INICIO)}>
           ‹
         </Boton>
@@ -182,7 +195,7 @@ function PanelClick({ posicion, click, alCambiar }: Props & { posicion: { top: n
           ›
         </Boton>
         <button
-          onClick={() => alCambiar({ inicio: Math.round(posicionCancion.current * 1000) / 1000 })}
+          onClick={() => alCambiar({ inicio: Math.max(0, Math.round((posicionCancion.current - entrada) * 1000) / 1000) })}
           title="Pon el primer tiempo donde está ahora la canción"
           className="ml-auto rounded-lg border border-line-2 bg-ink-1 px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:text-fg"
         >
@@ -219,11 +232,12 @@ function Boton(props: { etiqueta: string; onClick: () => void; children: React.R
   );
 }
 
-function Opcion(props: { elegida: boolean; onClick: () => void; children: React.ReactNode }) {
+function Opcion(props: { elegida: boolean; deshabilitada?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={props.onClick}
-      className={`rounded-md border px-2 py-1 font-mono text-[12.5px] ${
+      disabled={props.deshabilitada}
+      className={`rounded-md border px-2 py-1 font-mono text-[12.5px] disabled:opacity-40 ${
         props.elegida
           ? "border-accent bg-[#22305e] text-accent"
           : "border-line bg-ink-1 text-fg-2 hover:border-line-2 hover:text-fg"

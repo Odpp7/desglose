@@ -27,6 +27,7 @@ export type Cancion = {
   inicio_click: number;
   /** Compases de entrada antes del primer tiempo. */
   conteo: number;
+  entrada_compases: number;
   click_volumen: number;
   click_activo: number;
   /** La voz guía: encendida (0/1), volumen y compases de anticipación (null = automático). */
@@ -144,6 +145,7 @@ export async function guardarClick(
     | "compas"
     | "inicio_click"
     | "conteo"
+    | "entrada_compases"
     | "click_volumen"
     | "click_activo"
     | "guia_activa"
@@ -153,7 +155,7 @@ export async function guardarClick(
 ) {
   const db = await base();
   await db.execute(
-    "UPDATE canciones SET bpm = $1, compas = $2, inicio_click = $3, conteo = $4, click_volumen = $5, click_activo = $6, guia_activa = $7, guia_volumen = $8, anticipacion = $9 WHERE id = $10",
+    "UPDATE canciones SET bpm = $1, compas = $2, inicio_click = $3, conteo = $4, click_volumen = $5, click_activo = $6, guia_activa = $7, guia_volumen = $8, anticipacion = $9, entrada_compases = $10 WHERE id = $11",
     [
       c.bpm,
       c.compas,
@@ -164,6 +166,7 @@ export async function guardarClick(
       c.guia_activa,
       c.guia_volumen,
       c.anticipacion,
+      c.entrada_compases,
       id,
     ],
   );

@@ -6,6 +6,7 @@ mod db;
 mod mvsep;
 mod secciones;
 mod secuencia;
+mod servicios;
 
 use std::thread;
 use std::time::Duration;
