@@ -128,7 +128,7 @@ export function FranjaSecciones(props: Props) {
     <div
       style={{ height: ALTO_SECCIONES }}
       onMouseDown={(e) => e.stopPropagation()} // la franja no salta: tiene sus propios clics
-      className="relative border-b border-line bg-ink-0"
+      className="relative overflow-x-clip border-b border-line bg-ink-0"
     >
       {lista.map((s, i) => {
         const izquierda = x(s.inicio);
