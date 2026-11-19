@@ -38,7 +38,7 @@ export function FranjaGuia(props: Props) {
   // Mientras se arrastra: dónde queda el inicio de esa marca (solo para dibujarla).
   const [arrastre, setArrastre] = useState<Arrastre | null>(null);
 
-  const base = "relative border-b border-line bg-ink-0";
+  const base = "relative overflow-x-clip border-b border-line bg-ink-0";
   if (duracion <= 0 || ancho <= 0) return <div style={{ height: ALTO_GUIA }} className={base} />;
   if (!click.bpm) {
     return (

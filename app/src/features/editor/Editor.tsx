@@ -471,8 +471,8 @@ export function Editor({ cancion, pistas: desdeBase, click, alCambiarClick, alTe
       )}
 
       {/* Cabeceras y ondas se desplazan juntas si las pistas no caben. */}
-      <div ref={zona} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid grid-cols-[244px_1fr]">
+      <div ref={zona} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="grid grid-cols-[244px_minmax(0,1fr)]">
           <div className="border-r border-line bg-ink-1">
             <div
               style={{ height: ALTO_REGLA }}

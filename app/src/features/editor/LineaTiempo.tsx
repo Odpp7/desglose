@@ -199,11 +199,11 @@ export function LineaTiempo({ filas, altoFila, duracion, entrada, alSaltar, alMo
   }
 
   return (
-    <div ref={caja} onMouseDown={alPresionar} className="relative min-w-0 cursor-pointer select-none">
+    <div ref={caja} onMouseDown={alPresionar} className="relative min-w-0 overflow-x-clip cursor-pointer select-none">
       <Regla duracion={duracion} ancho={ancho} click={rejilla} />
       {franja(ancho)}
       {franjaGuia(ancho)}
-      <canvas ref={canvas} className="block" style={{ height: filas.length * altoFila }} />
+      <canvas ref={canvas} className="block w-full" style={{ height: filas.length * altoFila }} />
       {entrada > 0 && duracion > 0 && (
         <div
           title="Compases antes de la música"
@@ -338,7 +338,8 @@ function dibujarOndas(
   const alto = filas.length * altoFila;
   lienzo.width = ancho * escala;
   lienzo.height = alto * escala;
-  lienzo.style.width = `${ancho}px`;
+  // El CSS fija el tamaño visible. Los atributos son solo la resolución:
+  // una anchura en píxeles aquí alimentaría otro cambio de tamaño del contenedor.
   const g = lienzo.getContext("2d");
   if (!g) return;
   g.setTransform(escala, 0, 0, escala, 0, 0);

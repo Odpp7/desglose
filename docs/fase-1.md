@@ -8,6 +8,8 @@ Este documento es el punto de partida de la app real. Reúne lo decidido y lo ap
 
 Qué hay hoy en la app (detalle de carpetas en `app/README.md`):
 
+- **Versión 0.1.2 (18 de noviembre):** estabiliza el tamaño del panel de ondas al mostrar secciones y avisos de voz guía. El canvas se adapta al ancho disponible y los avisos se recortan dentro de su franja. Probado en Edge con ocho pistas y veinte secciones en tres tamaños de panel.
+
 - **Una sola pantalla**, como la captura de referencia de Oscar (estilo StemDeck): biblioteca siempre a la izquierda (carpetas y canciones), la canción abierta a la derecha. Ver la memoria/decisión del diseño antes de tocar la interfaz.
 - **Biblioteca:** agregar arrastrando o con botón, carpetas, buscar, renombrar, mover, borrar. SQLite con 7 migraciones (`src-tauri/src/db.rs`; para cambiar tablas se agrega una migración nueva, nunca se edita una vieja).
 - **Separar con MVSep por partes:** "Crear secuencia" hace 1 trabajo (voz, batería, bajo, piano, guitarra, otros); voz líder y coros, guitarras y synth son botones aparte. Un botón verde vuelve a la pista original y se puede volver a activar con los audios guardados. En canciones antiguas que perdieron la pista original, la app pide permiso para recuperarla con un trabajo de MVSep. Muestra la fila, retoma el trabajo si se cierra la app, adopta un trabajo huérfano, se puede cancelar, y si se pierde el aviso de fin se recupera desde `pistas/lista.json`.
